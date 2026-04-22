@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "widgets": [
+    {
+      "id": "middle-east-globe",
+      "type": "globe",
+      "name": "Middle East Globe",
+      "config": {
+        "modelConfig": {
+          "id": "earth-default",
+          "materialVariantId": "tech"
+        },
+        "cameraConfig": {
+          "viewLon": 42,
+          "viewLat": 24,
+          "radius": 2400
+        },
+        "cameraAnimationEnabled": true,
+        "styleConfig": {
+          "effects": {
+            "environmentMap": {
+              "level": 0.42,
+              "rotationY": 0
+            },
+            "sharpen": {
+              "level": 0.25
+            },
+            "glowLayer": {
+              "level": 0.12
+            },
+            "contrast": {
+              "level": 0.28
+            },
+            "exposure": {
+              "level": 0.17
+            },
+            "taa": {
+              "level": 0.55
+            }
+          },
+          "lights": {
+            "hemisphericLight": {
+              "level": 0.2
+            },
+            "sun": {
+              "level": 0
+            }
+          },
+          "performance": {
+            "renderQuality": {
+              "level": 0.85
+            }
+          }
+        }
+      },
+      "layout": {
+        "minHeight": 900
+      }
+    },
+    {
+      "id": "middle-east-3d-map",
+      "type": "extruded-map",
+      "name": "Middle East 3D Map",
+      "config": {
+        "level": "world",
+        "code": "WORLD",
+        "modelConfig": {
+          "id": "world-default"
+        },
+        "styleConfig": {
+          "styleId": "default",
+          "styleOverride": {}
+        }
+      },
+      "layout": {
+        "minHeight": 900
+      }
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { WidgetHost } from '@zmeta/ai-board-sdk';
 import * as echarts from 'https://esm.sh/echarts@5.5.1';
 import {
   Engine, Scene, ArcRotateCamera, Vector3, MeshBuilder,
@@ -1959,7 +1960,7 @@ export default function App() {
 
   useEffect(() => {
     const handleResize = () => {
-      // Scale based on target resolution (7680x1350 virtual space)
+      // Fit the full ultra-wide board into the preview frame without cropping.
       setScale(Math.min(window.innerWidth / 7680, window.innerHeight / 1350));
     };
     window.addEventListener('resize', handleResize);
@@ -2555,7 +2556,7 @@ export default function App() {
   };
 
   return (
-    <div className="w-full h-screen bg-black flex items-center justify-center overflow-hidden font-montserrat">
+    <div className="w-screen h-screen bg-[#05050F] flex items-center justify-center overflow-hidden font-montserrat">
       
       <div 
         className="flex bg-[#05050F] overflow-hidden text-white border border-[#4F008C] relative"
@@ -2591,17 +2592,23 @@ export default function App() {
             }} />
           </div>
 
-          {/* Extended Canvas Wrapper to allow Galaxy Particles to spread across screens */}
-          <div 
-            className="absolute top-0 h-full pointer-events-none" 
-            style={{ 
-              left: '-3840px', 
-              width: '10752px',
-              maskImage: 'linear-gradient(to right, black 50%, transparent 80%)',
-              WebkitMaskImage: '-webkit-linear-gradient(left, black 50%, transparent 80%)'
+          <div
+            className="absolute inset-0 overflow-hidden pointer-events-auto"
+            style={{
+              maskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 82%, transparent 100%)',
+              WebkitMaskImage: '-webkit-linear-gradient(left, transparent 0%, black 12%, black 82%, transparent 100%)',
             }}
           >
-            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full outline-none pointer-events-auto z-0" />
+            <WidgetHost
+              id="middle-east-globe"
+              className="absolute left-0 top-0 z-0 overflow-hidden bg-transparent"
+              minHeight="100%"
+              style={{
+                width: '100%',
+                height: '100%',
+                transformOrigin: 'top left',
+              }}
+            />
           </div>
           
           {/* Aesthetic Center Target / Crosshair */}
@@ -2630,20 +2637,24 @@ export default function App() {
             backgroundSize: '40px 40px'
           }}></div>
 
-          {dataLoaded && (
-            <MaplibreMap
-              mapRef={mapRef}
-              viewState={viewState2D as any}
-              onMove={evt => setViewState2D(evt.viewState as any)}
-              mapStyle={{
-                version: 8,
-                sources: {},
-                layers: [{ id: 'background', type: 'background', paint: { 'background-color': 'rgba(5,5,15,0.2)' } }]
+          <div
+            className="absolute inset-0 z-[1] overflow-hidden pointer-events-auto"
+            style={{
+              maskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%)',
+              WebkitMaskImage: '-webkit-linear-gradient(left, transparent 0%, black 12%, black 88%, transparent 100%)',
+            }}
+          >
+            <WidgetHost
+              id="middle-east-3d-map"
+              className="absolute left-0 top-0 z-[1] overflow-hidden bg-transparent"
+              minHeight="100%"
+              style={{
+                width: '100%',
+                height: '100%',
+                transformOrigin: 'top left',
               }}
-              interactive={false}
-              layers={deckLayers}
             />
-          )}
+          </div>
 
           {/* 边缘过渡黑边 */}
           <div className="absolute inset-0 z-10 pointer-events-none shadow-[inset_0_0_200px_100px_#05050F]"></div>
