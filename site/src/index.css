@@ -1,0 +1,115 @@
+@import url('https://esm.sh/maplibre-gl@5.23.0/dist/maplibre-gl.css');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@100;200;300;400;500;600;700;800&display=swap');
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background: #000;
+  color: #fff;
+  font-family: 'Montserrat', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+.font-montserrat { font-family: 'Montserrat', sans-serif; }
+
+/* Artistic Font Classes — aligned with the original webdemo */
+.font-art-title {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+}
+.font-art-mono {
+  font-family: 'Montserrat', sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.font-art-sans {
+  font-family: 'Montserrat', sans-serif;
+}
+
+/* Scientific / Generative Art Crosshair Decorators */
+.art-crosshair {
+  position: relative;
+}
+.art-crosshair::before,
+.art-crosshair::after {
+  content: '';
+  position: absolute;
+  background-color: rgba(255, 255, 255, 0.4);
+}
+.art-crosshair-tl::before { top: 0; left: -5px; width: 11px; height: 1px; }
+.art-crosshair-tl::after  { top: -5px; left: 0; width: 1px; height: 11px; }
+.art-crosshair-tr::before { top: 0; right: -5px; width: 11px; height: 1px; }
+.art-crosshair-tr::after  { top: -5px; right: 0; width: 1px; height: 11px; }
+
+/* Extremely thin, minimalist scrollbar for the middle seam */
+.art-scrollbar::-webkit-scrollbar { width: 2px; }
+.art-scrollbar::-webkit-scrollbar-track { background: #05050F; }
+.art-scrollbar::-webkit-scrollbar-thumb { background: #333333; }
+.art-scrollbar::-webkit-scrollbar-thumb:hover { background: #A54EE1; }
+
+/* Alert Card — Real-time flowing light effect on both sides */
+@keyframes alertFlowDown {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+@keyframes alertFlowUp {
+  0%   { transform: translateY(100%); }
+  100% { transform: translateY(-100%); }
+}
+.alert-side-rail {
+  position: absolute;
+  top: 16px;
+  bottom: 16px;
+  width: 3px;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 999px;
+  z-index: 5;
+}
+.alert-side-rail::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    var(--alert-accent, #FF375E) 20%,
+    var(--alert-accent, #FF375E) 80%,
+    transparent 100%);
+  opacity: 0.18;
+}
+.alert-side-rail::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  height: 55%;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    var(--alert-accent, #FF375E) 45%,
+    #ffffff 50%,
+    var(--alert-accent, #FF375E) 55%,
+    transparent 100%);
+  filter: blur(2px);
+  box-shadow:
+    0 0 16px 2px var(--alert-accent, #FF375E),
+    0 0 36px 6px color-mix(in srgb, var(--alert-accent, #FF375E) 55%, transparent);
+}
+.alert-side-rail.left  { left: 14px; }
+.alert-side-rail.right { right: 14px; }
+.alert-side-rail.left::after  { animation: alertFlowDown 2.8s linear infinite; }
+.alert-side-rail.right::after { animation: alertFlowUp   2.8s linear infinite; }
+
+/* Event Ledger — auto-scrolling marquee */
+@keyframes ledgerScroll {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+.animate-ledger-scroll {
+  animation: ledgerScroll 24s linear infinite;
+  will-change: transform;
+}
+.event-ledger-marquee:hover .animate-ledger-scroll {
+  animation-play-state: paused;
+}
