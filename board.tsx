@@ -12,7 +12,7 @@ import MaplibreMap, { type MapHandle } from './components/MaplibreMap';
 import {
   Plus,
   CaretUp, CaretDown, Network, Globe, MapPin, Database, Ruler,
-  Lightning, Ticket, Fire, Warning, Clock, Hourglass, Users, Pulse, Waveform,
+  Lightning, Ticket, Fire, Warning, RiskWarning, EtrClock, Hourglass, ImpactUsers, StatusPanel, LatencyGauge,
   type Icon,
 } from './components/Icons';
 
@@ -287,7 +287,7 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
   const accentColor = isP2 ? '#FF5F1D' : BRAND.coral;
   const accentSoft = isP2 ? 'rgba(255,95,29,0.2)' : 'rgba(255,55,94,0.15)';
   const cardBgSrc = isP2 ? alertPopupBgOrange : alertPopupBg;
-  const cardBgTint = isP2 ? 'rgba(24,14,6,0.42)' : 'rgba(20,8,18,0.40)';
+  const cardBgTint = isP2 ? 'rgba(24,14,6,0.08)' : 'rgba(20,8,18,0.40)';
 
   return (
     <div className="relative w-full h-full overflow-hidden" style={{ ['--alert-accent' as any]: accentColor }}>
@@ -302,18 +302,38 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
           borderColor: 'transparent',
           borderWidth: '24px 16px 24px 16px',
           borderImageSource: `url(${cardBgSrc})`,
-          borderImageSlice: '27 18 27 18 fill',
-          borderImageWidth: '24px 16px 24px 16px',
+          borderImageSlice: '27 18 42 18 fill',
+          borderImageWidth: '24px 16px 32px 16px',
           borderImageRepeat: 'stretch',
         }}
       />
+      <div className="absolute inset-y-[34px] left-[20px] w-[24px] pointer-events-none z-[2] overflow-hidden">
+        <div
+          className="alert-side-stripe-flow absolute inset-y-0 left-0 w-[18px]"
+          style={{
+            ['--stripe-accent' as any]: accentColor,
+            ['--stripe-angle' as any]: '30deg',
+            boxShadow: `0 0 10px ${withAlpha(accentColor, 0.55)}`,
+          }}
+        />
+      </div>
+      <div className="absolute inset-y-[34px] right-[20px] w-[24px] pointer-events-none z-[2] overflow-hidden">
+        <div
+          className="alert-side-stripe-flow absolute inset-y-0 right-0 w-[18px]"
+          style={{
+            ['--stripe-accent' as any]: accentColor,
+            ['--stripe-angle' as any]: '150deg',
+            boxShadow: `0 0 10px ${withAlpha(accentColor, 0.55)}`,
+          }}
+        />
+      </div>
       <div className="relative pl-[80px] pr-[96px] pt-[72px] pb-[60px] h-full flex flex-col">
 
         {/* ───────── Header: severity + location + priority ───────── */}
         <div className="flex items-center justify-between gap-[20px] shrink-0 mb-[22px]">
           <div className="flex items-center gap-[16px] min-w-0">
             <div
-              className="inline-flex items-center rounded-full px-[16px] py-[6px] text-[15px] font-bold tracking-normal shrink-0"
+              className="inline-flex items-center rounded-full px-[18px] py-[7px] text-[18px] font-bold tracking-normal shrink-0"
               style={{ backgroundColor: accentColor, color: '#1A0712' }}
             >
               {item.severity}
@@ -345,8 +365,8 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
         </div>
 
         {/* ───────── One-line description ───────── */}
-        <div className="shrink-0 mb-[28px] flex items-center gap-[14px] text-[20px] text-[rgba(221,223,226,0.78)] font-light">
-          <span className="font-art-mono uppercase tracking-normal text-[15px]" style={{ color: accentColor }}>
+        <div className="shrink-0 mb-[28px] flex items-center gap-[14px] text-[24px] text-[rgba(221,223,226,0.78)] font-light">
+          <span className="font-art-mono uppercase tracking-normal text-[22px] font-semibold" style={{ color: accentColor }}>
             {item.ticketId}
           </span>
           <span className="text-[rgba(221,223,226,0.28)]">·</span>
@@ -372,10 +392,10 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
             }[] = [
               {
                 label: 'Duration',
-                icon: <Hourglass size={20} weight="fill" style={{ color: accentColor }} />,
+                icon: <Hourglass size={24} color={accentColor} />,
                 visual: (
                   <div
-                    className="relative h-[6px] w-full overflow-hidden"
+                    className="relative h-[9px] w-full overflow-hidden"
                     style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
                   >
                     <div
@@ -393,7 +413,7 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
               },
               {
                 label: 'Status',
-                icon: <Pulse size={20} weight="fill" style={{ color: accentColor }} />,
+                icon: <StatusPanel size={24} color={accentColor} />,
                 visual: (() => {
                   const STAGES = ['Open', 'Investigating', 'Repairing', 'Monitoring', 'Resolved'] as const;
                   const currentIdx = STAGES.indexOf(item.progressStage);
@@ -405,7 +425,7 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
                         return (
                           <div
                             key={stage}
-                            className="flex-1 h-[4px]"
+                            className="flex-1 h-[7px]"
                             style={{
                               backgroundColor: reached
                                 ? accentColor
@@ -424,19 +444,13 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
               },
               {
                 label: item.snapshotMetricLabel,
-                icon: <Waveform size={20} weight="fill" style={{ color: accentColor }} />,
+                icon: <LatencyGauge size={24} color={accentColor} />,
                 visual: (
                   <div className="flex items-center gap-[10px]">
-                    {item.snapshotTrend === 'up' && (
-                      <CaretUp size={20} weight="fill" style={{ color: accentColor }} />
-                    )}
-                    {item.snapshotTrend === 'down' && (
-                      <CaretDown size={20} weight="fill" style={{ color: accentColor }} />
-                    )}
                     <span
-                      className="font-art-mono text-[20px] uppercase tracking-normal truncate text-white"
+                      className="font-art-mono text-[22px] uppercase tracking-normal truncate text-white"
                     >
-                      {ticket?.cable ?? item.nodeId} · {item.signal}
+                      {ticket?.cable ?? item.nodeId}
                     </span>
                   </div>
                 ),
@@ -445,9 +459,9 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
               },
               {
                 label: 'Impact',
-                icon: <Users size={20} weight="fill" style={{ color: accentColor }} />,
+                icon: <ImpactUsers size={24} color={accentColor} />,
                 visual: (
-                  <span className="text-[20px] uppercase tracking-normal text-white">
+                  <span className="text-[22px] uppercase tracking-normal text-white">
                     {item.affectedCustomers} Customers · {item.affectedCircuits} Circuits
                   </span>
                 ),
@@ -456,9 +470,9 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
               },
               {
                 label: 'ETR',
-                icon: <Clock size={20} weight="fill" style={{ color: accentColor }} />,
+                icon: <EtrClock size={24} color={accentColor} />,
                 visual: (
-                  <span className="text-[20px] uppercase tracking-normal text-white">
+                  <span className="text-[22px] uppercase tracking-normal text-white">
                     Started {item.startTime}
                   </span>
                 ),
@@ -467,16 +481,16 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
               },
               {
                 label: 'Risk',
-                icon: <Warning size={20} weight="fill" style={{ color: accentColor }} />,
+                icon: <RiskWarning size={24} color={accentColor} />,
                 visual: item.dualRouteImpact ? (
                   <span
-                    className="text-[20px] uppercase tracking-normal font-semibold"
+                    className="text-[22px] uppercase tracking-normal font-semibold whitespace-nowrap"
                     style={{ color: accentColor }}
                   >
                     Dual Route Impact Detected
                   </span>
                 ) : (
-                  <span className="text-[20px] uppercase tracking-normal text-white">
+                  <span className="text-[22px] uppercase tracking-normal text-white">
                     Single route · contained
                   </span>
                 ),
@@ -487,20 +501,20 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
             return rows.map((row, idx) => (
               <div
                 key={row.label}
-                className="grid grid-cols-[140px_32px_1fr_200px] items-center gap-[20px] py-[22px]"
+                className="grid grid-cols-[168px_42px_1fr_240px] items-center gap-[20px] py-[28px]"
                 style={{
                   borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
                 }}
               >
                 <div className="flex items-center gap-[12px] min-w-0">
-                  <span className="text-[20px] uppercase tracking-normal text-[rgba(221,223,226,0.72)] truncate">
+                  <span className="text-[24px] uppercase tracking-normal text-[rgba(221,223,226,0.72)] truncate">
                     {row.label}
                   </span>
                 </div>
                 <div className="flex items-center justify-center">{row.icon}</div>
                 <div className="min-w-0 flex items-center">{row.visual}</div>
                 <div
-                  className="font-art-mono text-[26px] font-semibold tabular-nums text-right whitespace-nowrap overflow-hidden"
+                  className="font-art-mono text-[30px] font-semibold tabular-nums text-right whitespace-nowrap overflow-hidden"
                   style={{ color: row.valueColor }}
                 >
                   {row.value}
@@ -617,8 +631,13 @@ function StatusRingChart({
       chartInstanceRef.current?.resize();
     });
     resizeObserverRef.current.observe(chartRef.current);
+    const firstFrame = window.requestAnimationFrame(() => {
+      chartInstanceRef.current?.resize();
+      window.requestAnimationFrame(() => chartInstanceRef.current?.resize());
+    });
 
     return () => {
+      window.cancelAnimationFrame(firstFrame);
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
       chartInstanceRef.current?.dispose();
@@ -1032,7 +1051,7 @@ function GlobalStatusRingCard({
       </div>
       <div className="flex flex-col items-center mt-auto mb-auto pt-[16px]">
         <div
-          className="text-[16px] uppercase tracking-[0.18em] whitespace-nowrap text-center mb-[8px]"
+          className="text-[20px] uppercase tracking-normal whitespace-nowrap text-center mb-[8px]"
           style={{ color: BRAND.silver }}
         >
           {item.label}
@@ -1116,10 +1135,8 @@ function BusinessStatusChart() {
 
 function GlobalAlertSummary() {
   const pieRef = useRef<HTMLDivElement>(null);
-  const pieGhostRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const pieChartRef = useRef<echarts.ECharts | null>(null);
-  const pieGhostChartRef = useRef<echarts.ECharts | null>(null);
   const barChartRef = useRef<echarts.ECharts | null>(null);
 
   const [alertData, setAlertData] = useState({
@@ -1136,7 +1153,6 @@ function GlobalAlertSummary() {
     }
   });
 
-  // Real-time data simulation
   useEffect(() => {
     const interval = setInterval(() => {
       setAlertData(prev => {
@@ -1170,197 +1186,284 @@ function GlobalAlertSummary() {
   }, []);
 
   useEffect(() => {
-    if (!pieRef.current || !barRef.current || !pieGhostRef.current) return;
+    if (!pieRef.current || !barRef.current) return;
 
-    if (!pieChartRef.current) {
-      pieChartRef.current = echarts.init(pieRef.current, null, { renderer: 'canvas' });
-    }
-    if (!pieGhostChartRef.current) {
-      pieGhostChartRef.current = echarts.init(pieGhostRef.current, null, { renderer: 'canvas' });
-    }
-    if (!barChartRef.current) {
-      barChartRef.current = echarts.init(barRef.current, null, { renderer: 'canvas' });
-    }
+    pieChartRef.current =
+      echarts.getInstanceByDom(pieRef.current) ??
+      echarts.init(pieRef.current, null, { renderer: 'canvas' });
+    barChartRef.current =
+      echarts.getInstanceByDom(barRef.current) ??
+      echarts.init(barRef.current, null, { renderer: 'canvas' });
 
     const pieChart = pieChartRef.current;
-    const pieGhostChart = pieGhostChartRef.current;
     const barChart = barChartRef.current;
 
     const handleResize = () => {
       pieChart.resize();
-      pieGhostChart.resize();
       barChart.resize();
     };
-    window.addEventListener('resize', handleResize);
-
-    // --- Pie Chart (Global Severity Distribution) ---
-    pieChart.setOption({
-      animation: true,
-      animationDuration: 1000,
-      animationEasing: 'cubicOut',
-      backgroundColor: 'transparent',
-      textStyle: { fontFamily: 'Montserrat' },
-      tooltip: {
-        trigger: 'item',
-        backgroundColor: withAlpha(BRAND.onyx, 0.95),
-        borderColor: BRAND.purple,
-        textStyle: { color: BRAND.air, fontSize: 14, fontFamily: 'Montserrat' },
-        padding: [12, 16],
-        borderRadius: 8,
-      },
-      series: [
-        {
-          type: 'pie',
-          radius: ['70%', '76%'],
-          center: ['50%', '50%'],
-          avoidLabelOverlap: false,
-          label: { show: false },
-          itemStyle: {
-            borderRadius: 20,
-            borderWidth: 0,
-          },
-          data: alertData.pie
-        },
-        // Track background
-        {
-          type: 'pie',
-          radius: ['70%', '76%'],
-          center: ['50%', '50%'],
-          silent: true,
-          z: -1,
-          itemStyle: {
-            color: 'rgba(255, 255, 255, 0.05)',
-            borderWidth: 0,
-          },
-          label: { show: false },
-          data: [{ value: 1 }]
-        }
-      ]
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
     });
 
-    // --- Ghost Pie Chart (dimmed duplicate for layered effect) ---
-    pieGhostChart.setOption({
-      animation: true,
-      animationDuration: 1000,
-      animationEasing: 'cubicOut',
-      backgroundColor: 'transparent',
-      textStyle: { fontFamily: 'Montserrat' },
-      series: [
-        {
-          type: 'pie',
-          radius: ['70%', '76%'],
-          center: ['50%', '50%'],
-          avoidLabelOverlap: false,
-          silent: true,
-          label: { show: false },
-          itemStyle: {
-            borderRadius: 20,
-            borderWidth: 0,
-          },
-          data: alertData.pie
-        },
-      ]
-    });
+    resizeObserver.observe(pieRef.current);
+    resizeObserver.observe(barRef.current);
 
-    // --- Bar Chart (Region Severity Proportion) ---
-    barChart.setOption({
-      animation: true,
-      animationDuration: 1000,
-      animationEasing: 'cubicOut',
-      backgroundColor: 'transparent',
-      textStyle: { fontFamily: 'Montserrat' },
-      grid: { top: 75, right: 20, bottom: 0, left: 10, containLabel: true },
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: { type: 'shadow' },
-        backgroundColor: withAlpha(BRAND.onyx, 0.95),
-        borderColor: BRAND.purple,
-        textStyle: { color: BRAND.air, fontSize: 14, fontFamily: 'Montserrat' },
-        padding: [12, 16],
-        borderRadius: 8,
-      },
-      legend: {
-        data: ['Critical', 'Warning', 'Normal'],
-        top: 0,
-        left: 0,
-        itemWidth: 10,
-        itemHeight: 10,
-        textStyle: { color: BRAND.silver, fontSize: 12, fontFamily: 'Montserrat' },
-        icon: 'circle'
-      },
-      xAxis: {
-        type: 'value',
-        show: false, // hide x axis for a cleaner HUD look
-      },
-      yAxis: {
-        type: 'category',
-        data: ['East', 'Central', 'West'],
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisLabel: { color: BRAND.air, fontSize: 18, fontWeight: 'lighter', margin: 16, fontFamily: 'Montserrat' }
-      },
-      series: [
-        {
-          name: 'Critical',
-          type: 'bar',
-          stack: 'total',
-          barWidth: 14,
-          data: alertData.bar.critical,
-          itemStyle: { color: BRAND.coral, shadowBlur: 10, shadowColor: BRAND.coral }
-        },
-        {
-          name: 'Spacer1',
-          type: 'bar',
-          stack: 'total',
-          data: [6, 6, 6],
-          itemStyle: { color: 'transparent' },
-          tooltip: { show: false }
-        },
-        {
-          name: 'Warning',
-          type: 'bar',
-          stack: 'total',
-          data: alertData.bar.warning,
-          itemStyle: { color: BRAND.moon, shadowBlur: 10, shadowColor: BRAND.moon }
-        },
-        {
-          name: 'Spacer2',
-          type: 'bar',
-          stack: 'total',
-          data: [6, 6, 6],
-          itemStyle: { color: 'transparent' },
-          tooltip: { show: false }
-        },
-        {
-          name: 'Normal',
-          type: 'bar',
-          stack: 'total',
-          itemStyle: { borderRadius: 0, color: '#BF89EF' },
-          data: alertData.bar.normal
-        }
-      ]
+    const firstFrame = window.requestAnimationFrame(() => {
+      handleResize();
+      window.requestAnimationFrame(handleResize);
     });
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.cancelAnimationFrame(firstFrame);
+      resizeObserver.disconnect();
+      // StrictMode in editor mounts/unmounts once before the real mount.
+      // Always dispose so the next mount binds to the current DOM node.
+      pieChart.dispose();
+      barChart.dispose();
+      pieChartRef.current = null;
+      barChartRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const pieEl = pieRef.current;
+    const barEl = barRef.current;
+
+    if (!pieEl || !barEl) return;
+
+    if (!pieChartRef.current) {
+      pieChartRef.current =
+        echarts.getInstanceByDom(pieEl) ??
+        echarts.init(pieEl, null, { renderer: 'canvas' });
+    }
+    if (!barChartRef.current) {
+      barChartRef.current =
+        echarts.getInstanceByDom(barEl) ??
+        echarts.init(barEl, null, { renderer: 'canvas' });
+    }
+
+    const pieChart = pieChartRef.current;
+    const barChart = barChartRef.current;
+
+    if (!pieChart || !barChart) return;
+
+    const resizeCharts = () => {
+      pieChart.resize();
+      barChart.resize();
+    };
+
+    // --- Pie Chart (Global Severity Distribution) ---
+    const ghostPieData = alertData.pie.map((item) => ({
+      ...item,
+      itemStyle: {
+        ...item.itemStyle,
+        color: withAlpha(String(item.itemStyle?.color ?? BRAND.moon), 0.26),
+        shadowBlur: 0,
+        shadowColor: 'transparent',
+      },
+    }));
+
+    let retryFrame = 0;
+    let settleFrame1 = 0;
+    let settleFrame2 = 0;
+    let disposed = false;
+
+    const hasUsableSize = () => {
+      const pieRect = pieEl.getBoundingClientRect();
+      const barRect = barEl.getBoundingClientRect();
+      return (
+        pieRect.width >= 2 &&
+        pieRect.height >= 2 &&
+        barRect.width >= 2 &&
+        barRect.height >= 2
+      );
+    };
+
+    const applyCharts = () => {
+      if (disposed) return;
+      resizeCharts();
+
+      pieChart.setOption({
+        animation: true,
+        animationDuration: 1000,
+        animationEasing: 'cubicOut',
+        backgroundColor: 'transparent',
+        textStyle: { fontFamily: 'Montserrat' },
+        tooltip: {
+          trigger: 'item',
+          backgroundColor: withAlpha(BRAND.onyx, 0.95),
+          borderColor: BRAND.purple,
+          textStyle: { color: BRAND.air, fontSize: 14, fontFamily: 'Montserrat' },
+          padding: [12, 16],
+          borderRadius: 8,
+        },
+        series: [
+          {
+            type: 'pie',
+            radius: ['70%', '76%'],
+            center: ['46%', '54%'],
+            avoidLabelOverlap: false,
+            silent: true,
+            label: { show: false },
+            itemStyle: {
+              borderRadius: 20,
+              borderWidth: 0,
+            },
+            data: ghostPieData,
+            z: 0,
+          },
+          {
+            type: 'pie',
+            radius: ['70%', '76%'],
+            center: ['50%', '50%'],
+            avoidLabelOverlap: false,
+            label: { show: false },
+            itemStyle: {
+              borderRadius: 20,
+              borderWidth: 0,
+            },
+            data: alertData.pie
+          },
+          {
+            type: 'pie',
+            radius: ['70%', '76%'],
+            center: ['50%', '50%'],
+            silent: true,
+            z: -1,
+            itemStyle: {
+              color: 'rgba(255, 255, 255, 0.05)',
+              borderWidth: 0,
+            },
+            label: { show: false },
+            data: [{ value: 1 }],
+          }
+        ]
+      });
+
+      barChart.setOption({
+        animation: true,
+        animationDuration: 1000,
+        animationEasing: 'cubicOut',
+        backgroundColor: 'transparent',
+        textStyle: { fontFamily: 'Montserrat' },
+        grid: { top: 60, right: 20, bottom: 0, left: 10, containLabel: true },
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: 'shadow' },
+          backgroundColor: withAlpha(BRAND.onyx, 0.95),
+          borderColor: BRAND.purple,
+          textStyle: { color: BRAND.air, fontSize: 14, fontFamily: 'Montserrat' },
+          padding: [12, 16],
+          borderRadius: 8,
+        },
+        xAxis: {
+          type: 'value',
+          show: false,
+        },
+        yAxis: {
+          type: 'category',
+          data: ['East', 'Central', 'West'],
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: BRAND.air, fontSize: 24, fontWeight: 500, margin: 16, fontFamily: 'Montserrat' }
+        },
+        series: [
+          {
+            name: 'Critical',
+            type: 'bar',
+            stack: 'total',
+            barWidth: 20,
+            data: alertData.bar.critical,
+            itemStyle: { color: BRAND.coral, shadowBlur: 10, shadowColor: BRAND.coral }
+          },
+          {
+            name: 'Spacer1',
+            type: 'bar',
+            stack: 'total',
+            barWidth: 20,
+            data: [6, 6, 6],
+            itemStyle: { color: 'transparent' },
+            tooltip: { show: false }
+          },
+          {
+            name: 'Warning',
+            type: 'bar',
+            stack: 'total',
+            barWidth: 20,
+            data: alertData.bar.warning,
+            itemStyle: { color: BRAND.moon, shadowBlur: 10, shadowColor: BRAND.moon }
+          },
+          {
+            name: 'Spacer2',
+            type: 'bar',
+            stack: 'total',
+            barWidth: 20,
+            data: [6, 6, 6],
+            itemStyle: { color: 'transparent' },
+            tooltip: { show: false }
+          },
+          {
+            name: 'Normal',
+            type: 'bar',
+            stack: 'total',
+            barWidth: 20,
+            itemStyle: { borderRadius: 0, color: '#BF89EF' },
+            data: alertData.bar.normal
+          }
+        ]
+      });
+
+      settleFrame1 = window.requestAnimationFrame(() => {
+        resizeCharts();
+        settleFrame2 = window.requestAnimationFrame(resizeCharts);
+      });
+    };
+
+    const waitForLayoutAndApply = () => {
+      if (disposed) return;
+      if (!hasUsableSize()) {
+        retryFrame = window.requestAnimationFrame(waitForLayoutAndApply);
+        return;
+      }
+      applyCharts();
+    };
+
+    waitForLayoutAndApply();
+
+    return () => {
+      disposed = true;
+      window.cancelAnimationFrame(retryFrame);
+      window.cancelAnimationFrame(settleFrame1);
+      window.cancelAnimationFrame(settleFrame2);
     };
   }, [alertData]);
 
+  const alertLegendItems = [
+    { label: 'Critical', color: BRAND.coral },
+    { label: 'Warning', color: BRAND.moon },
+    { label: 'Normal', color: '#BF89EF' },
+  ];
+
   return (
-    <div className="w-full h-full flex items-center gap-8">
+    <div className="w-full h-full relative flex items-center gap-8">
+      <div className="absolute left-1/2 -translate-x-1/2 top-[8px] z-20 pointer-events-none">
+        <div className="flex items-center gap-[34px]">
+          {alertLegendItems.map((item) => (
+            <div key={item.label} className="flex items-center gap-[8px]">
+              <span
+                className="inline-block w-[9px] h-[9px] rounded-full"
+                style={{ backgroundColor: item.color }}
+              />
+              <span className="text-[20px] font-medium text-[#8E9AA0] font-montserrat leading-none">
+                {item.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
       <div className="w-[40%] h-full relative flex flex-col items-center justify-center" style={{ transform: 'translateY(18px) scale(0.82)' }}>
         <div className="relative w-full h-full min-h-[200px]">
-          {/* Ghost ring — dimmed duplicate at lower-left, creates layered depth */}
-          <div
-            ref={pieGhostRef}
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              transform: 'skew(5deg, 14deg) translate(-5%, 5%) scale(0.96)',
-              opacity: 0.28,
-              filter: 'blur(0.5px)',
-              zIndex: 0,
-            }}
-          />
           <div ref={pieRef} className="absolute inset-0 z-[1]" style={{ transform: 'skew(5deg, 14deg)' }} />
           <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
             <span className="text-[36px] font-medium text-white font-montserrat">
@@ -1426,7 +1529,11 @@ function HistoricalKPIChart() {
     chartInstanceRef.current = chart;
     const ro = new ResizeObserver(() => chart.resize());
     ro.observe(chartRef.current);
-    return () => { ro.disconnect(); chart.dispose(); chartInstanceRef.current = null; };
+    const firstFrame = window.requestAnimationFrame(() => {
+      chart.resize();
+      window.requestAnimationFrame(() => chart.resize());
+    });
+    return () => { window.cancelAnimationFrame(firstFrame); ro.disconnect(); chart.dispose(); chartInstanceRef.current = null; };
   }, []);
 
   // Auto-rotate tabs every 5s
@@ -1457,8 +1564,8 @@ function HistoricalKPIChart() {
         axisLine: { lineStyle: { color: withAlpha(BRAND.lightSilver, 0.28) } },
         axisTick: { show: false },
         axisLabel: {
-          color: withAlpha(BRAND.lightSilver, 0.6),
-          fontSize: 14,
+          color: '#FFFFFF',
+          fontSize: 18,
           fontFamily: 'Montserrat',
           fontStyle: 'italic',
           rotate: -14,
@@ -1475,8 +1582,8 @@ function HistoricalKPIChart() {
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: {
-          color: withAlpha(BRAND.lightSilver, 0.6),
-          fontSize: 14,
+          color: '#FFFFFF',
+          fontSize: 18,
           fontFamily: 'Montserrat',
           fontStyle: 'italic',
           margin: 14,
@@ -1559,12 +1666,12 @@ function HistoricalKPIChart() {
               <button
                 key={tab.id}
                 onClick={() => setPeriod(tab.id)}
-                className={`px-[18px] text-[13px] uppercase tracking-[0.16em] transition-colors font-montserrat whitespace-nowrap ${
+                className={`px-[24px] text-[16px] uppercase tracking-normal transition-colors font-montserrat whitespace-nowrap ${
                   idx < KPI_TABS.length - 1 ? 'border-r' : ''
                 } ${
                   active
-                    ? 'bg-[#A54EE1]/15 text-white'
-                    : 'text-[#DDDFE2]/70 hover:text-white hover:bg-[#A54EE1]/8'
+                    ? 'bg-[#A54EE1]/15 text-white font-bold'
+                    : 'text-[#DDDFE2]/70 hover:text-white hover:bg-[#A54EE1]/8 font-normal'
                 }`}
                 style={{ borderRightColor: 'rgba(165,78,225,0.3)' }}
               >
@@ -1575,7 +1682,7 @@ function HistoricalKPIChart() {
         </div>
 
         {/* Custom legend */}
-        <div className="flex items-center gap-[24px] font-montserrat text-[14px] text-[#DDDFE2]/85">
+        <div className="flex items-center gap-[24px] font-montserrat text-[20px] text-[#DDDFE2]/85">
           <div className="flex items-center gap-[10px]">
             <span
               className="w-[20px] h-[3px] rounded-full shrink-0"
@@ -1661,14 +1768,14 @@ function RootCauseChart() {
         data: categories,
         axisLine: { show: false },
         axisTick: { show: false },
-        axisLabel: { color: withAlpha(BRAND.lightSilver, 0.88), fontSize: 16, fontFamily: 'Montserrat' },
+        axisLabel: { color: '#FFFFFF', fontSize: 18, fontFamily: 'Montserrat' },
         splitLine: { show: false },
       },
       yAxis: {
         type: 'value',
         axisLine: { show: false },
         axisTick: { show: false },
-        axisLabel: { color: withAlpha(BRAND.lightSilver, 0.6), fontSize: 14, fontFamily: 'Montserrat' },
+        axisLabel: { color: '#FFFFFF', fontSize: 18, fontFamily: 'Montserrat' },
         splitLine: { lineStyle: { color: withAlpha(BRAND.lightSilver, 0.14), type: 'dashed' } },
       },
       series: ROOT_CAUSE_TYPES.map((t) => ({
@@ -1689,7 +1796,12 @@ function RootCauseChart() {
     });
     const ro = new ResizeObserver(() => chart.resize());
     ro.observe(chartRef.current);
+    const firstFrame = window.requestAnimationFrame(() => {
+      chart.resize();
+      window.requestAnimationFrame(() => chart.resize());
+    });
     return () => {
+      window.cancelAnimationFrame(firstFrame);
       ro.disconnect();
       chart.dispose();
     };
@@ -1714,14 +1826,14 @@ function RootCauseChart() {
     <div className="w-full h-full flex items-stretch gap-[28px]" style={{ letterSpacing: 0 }}>
       {/* Left: stacked bar chart — region × failure type */}
       <div className="flex-1 min-w-0 h-full flex flex-col">
-        <div className="flex items-center gap-[14px] flex-wrap justify-center mb-[8px]">
+        <div className="flex items-center gap-[14px] flex-nowrap justify-center mb-[8px] overflow-hidden">
           {ROOT_CAUSE_TYPES.map((t) => (
             <div
               key={t.key}
-              className="flex items-center gap-[6px] text-[13px] text-[rgba(221,223,226,0.78)] whitespace-nowrap"
+              className="flex items-center gap-[6px] text-[15px] text-white whitespace-nowrap shrink-0"
             >
               <span
-                className="w-[10px] h-[10px] rounded-[2px] shrink-0"
+                className="w-[9px] h-[9px] rounded-[2px] shrink-0"
                 style={{ background: rootCauseTypeSwatch(t.key) }}
               />
               <span>{t.label}</span>
@@ -1763,9 +1875,9 @@ function RootCauseChart() {
                       {combo.type.label}
                     </span>
                   </div>
-                  <div className="h-[4px] w-full bg-white/5 overflow-hidden rounded-full">
+                  <div className="h-[7px] w-full bg-white/5 overflow-hidden">
                     <div
-                      className="h-full rounded-full"
+                      className="h-full"
                       style={{
                         width: `${barPct}%`,
                         background: `linear-gradient(90deg, ${swatch}, ${withAlpha(swatch, 0.5)})`,
@@ -1945,8 +2057,16 @@ export default function App() {
   const [currentStory, setCurrentStory] = useState<StoryMode>('GLOBAL');
   const [activeAlertIndex, setActiveAlertIndex] = useState(0);
   const [alertPopupPhase, setAlertPopupPhase] = useState<'hidden' | 'visible'>('hidden');
+  const [now, setNow] = useState(() => new Date());
+  const ledgerViewportRef = useRef<HTMLDivElement | null>(null);
+  const ledgerItemRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const [centerLedgerIndex, setCenterLedgerIndex] = useState(0);
   const config = STORY_CONFIG[currentStory];
   const activeAlert = ALERT_SEQUENCE[activeAlertIndex];
+  const isP1AlarmTone =
+    currentStory === 'ALARM_EVENT' &&
+    alertPopupPhase === 'visible' &&
+    activeAlert.priority === 'P1';
   
   const storyRef = useRef(currentStory);
   const activeAlertRef = useRef(activeAlert);
@@ -1966,6 +2086,13 @@ export default function App() {
     window.addEventListener('resize', handleResize);
     handleResize(); 
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -1994,6 +2121,48 @@ export default function App() {
       window.clearTimeout(initTimer);
       window.clearInterval(interval);
     };
+  }, [currentStory]);
+
+  useEffect(() => {
+    if (currentStory !== 'ALARM_EVENT') return;
+
+    let rafId = 0;
+    let prevCenterIdx = -1;
+
+    const updateCenterHighlight = () => {
+      const viewport = ledgerViewportRef.current;
+      if (!viewport) {
+        rafId = window.requestAnimationFrame(updateCenterHighlight);
+        return;
+      }
+
+      const viewportRect = viewport.getBoundingClientRect();
+      const viewportCenterY = viewportRect.top + viewportRect.height / 2;
+      let closestIdx = -1;
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      ledgerItemRefs.current.forEach((item, idx) => {
+        if (!item) return;
+        const rect = item.getBoundingClientRect();
+        if (rect.bottom <= viewportRect.top || rect.top >= viewportRect.bottom) return;
+        const itemCenterY = rect.top + rect.height / 2;
+        const distance = Math.abs(itemCenterY - viewportCenterY);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIdx = idx;
+        }
+      });
+
+      if (closestIdx >= 0 && closestIdx !== prevCenterIdx) {
+        prevCenterIdx = closestIdx;
+        setCenterLedgerIndex(closestIdx);
+      }
+
+      rafId = window.requestAnimationFrame(updateCenterHighlight);
+    };
+
+    rafId = window.requestAnimationFrame(updateCenterHighlight);
+    return () => window.cancelAnimationFrame(rafId);
   }, [currentStory]);
 
   useEffect(() => {
@@ -2475,6 +2644,8 @@ export default function App() {
   ];
 
   const CARD_TITLE = 'text-[24px] text-white font-semibold leading-[29px] tracking-[0.01em]';
+  const dateText = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const timeText = `${String(now.getHours()).padStart(2, '0')} : ${String(now.getMinutes()).padStart(2, '0')} : ${String(now.getSeconds()).padStart(2, '0')}`;
 
   const renderRightCardShell = (title: string, body: ReactNode, cardHeightClass: string, extraClass = '') => (
     <div className={`relative w-full ${cardHeightClass} ${extraClass} overflow-hidden`}>
@@ -2547,7 +2718,7 @@ export default function App() {
         <div className="absolute inset-0 px-[86px] flex items-center justify-between gap-[32px]">
           <div className="flex items-center gap-[28px] min-w-0">
             {IconComp && <MetricIconBadge IconComp={IconComp} id={iconId} palette={badgePalette} />}
-            <div className="text-[44px] text-white font-extralight leading-[1.05]">{label}</div>
+            <div className="text-[44px] text-white font-normal leading-[1.05]">{label}</div>
           </div>
           <div className="text-white text-[76px] font-medium whitespace-nowrap shrink-0">{value}</div>
         </div>
@@ -2559,11 +2730,21 @@ export default function App() {
     <div className="w-screen h-screen bg-[#05050F] flex items-center justify-center overflow-hidden font-montserrat">
       
       <div 
-        className="flex bg-[#05050F] overflow-hidden text-white border border-[#4F008C] relative"
+        className="flex bg-[#05050F] overflow-hidden text-white relative"
         style={{
           width: '7680px',
           height: '1350px', 
           position: 'absolute',
+          backgroundImage: isP1AlarmTone
+            ? `
+              radial-gradient(ellipse at 50% 50%, rgba(255,55,94,0) 0%, rgba(255,55,94,0) 46%, rgba(255,55,94,0.06) 70%, rgba(255,55,94,0.16) 100%),
+              linear-gradient(180deg, rgba(255,55,94,0.14) 0%, rgba(255,55,94,0) 24%, rgba(255,55,94,0) 76%, rgba(255,55,94,0.14) 100%),
+              linear-gradient(90deg, rgba(255,55,94,0.14) 0%, rgba(255,55,94,0) 20%, rgba(255,55,94,0) 80%, rgba(255,55,94,0.14) 100%)
+            `
+            : 'none',
+          boxShadow: isP1AlarmTone
+            ? `0 0 40px ${withAlpha(BRAND.coral, 0.32)}, inset 0 0 140px ${withAlpha(BRAND.coral, 0.12)}`
+            : 'none',
           transform: `scale(${scale})`,
           transformOrigin: 'top left', // Scale from the top left corner
           top: '50%',
@@ -2572,7 +2753,6 @@ export default function App() {
           marginLeft: `-${7680 * scale / 2}px`, // Manually center it taking scale into account
         }}
       >
-        
         {/* Left gutter aligned with Figma */}
         <div className="h-full shrink-0 border-r border-white/10 relative" style={{ width: '540px' }} />
 
@@ -2670,7 +2850,7 @@ export default function App() {
         {/* ========================================================= */}
         {/* CENTER ALERT POPUP                                          */}
         {/* ========================================================= */}
-        <div className={`absolute left-[50%] top-[54%] z-[28] ${currentStory === 'ALARM_EVENT' ? 'pointer-events-none' : 'opacity-0 pointer-events-none'}`} style={{ transform: 'translate(-50%, -50%)' }}>
+        <div className={`absolute left-[50%] top-[54%] z-[70] ${currentStory === 'ALARM_EVENT' ? 'pointer-events-none' : 'opacity-0 pointer-events-none'}`} style={{ transform: 'translate(-50%, -50%)' }}>
           <div
             className={`relative w-[1020px] h-[960px] transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] origin-[0%_50%] ${
               alertPopupPhase === 'hidden'
@@ -2693,8 +2873,8 @@ export default function App() {
         {/* ========================================================= */}
         <div className="absolute top-[33px] right-[95px] z-50 flex items-center gap-[58px] font-montserrat text-[#DDDFE2] text-[28px] font-normal leading-none tracking-normal">
           <div>Cloudy</div>
-          <div>2026-04-20</div>
-          <div>16 : 36 : 01</div>
+          <div>{dateText}</div>
+          <div>{timeText}</div>
         </div>
 
         {/* Title / Brand aligned to Figma node positions */}
@@ -3043,29 +3223,46 @@ export default function App() {
                     <div className="flex-1 min-h-0">
                       {renderRightCardShell(
                         'Event Ledger',
-                        <div className="relative h-full w-full overflow-hidden event-ledger-marquee">
+                        <div ref={ledgerViewportRef} className="relative h-full w-full overflow-hidden event-ledger-marquee">
                           <div className="flex flex-col gap-[14px] pr-[8px] animate-ledger-scroll">
                             {[...MOCK_TICKETS, ...MOCK_TICKETS].map((t, idx) => {
                               const accent =
                                 t.severity === 'CRITICAL' ? '#FF375E' :
                                 t.severity === 'WARNING' ? '#FF5F1D' : '#8E9AA0';
                               const statusColor = LEDGER_STATUS_COLORS[t.status] ?? '#8E9AA0';
+                              const isHighlighted = idx === centerLedgerIndex;
                               return (
                                 <div
                                   key={`${t.id}-${idx}`}
+                                  ref={(el) => {
+                                    ledgerItemRefs.current[idx] = el;
+                                  }}
                                   className="relative grid items-center shrink-0 px-[32px] py-[40px] min-h-[240px]"
                                   style={{
                                     gridTemplateColumns: '3px 1fr auto',
                                     columnGap: 32,
-                                    background: `linear-gradient(90deg, ${accent}1A 0%, rgba(20,12,40,0.45) 55%, rgba(20,12,40,0.25) 100%)`,
-                                    border: `1px solid ${accent}26`,
+                                    background: isHighlighted
+                                      ? `linear-gradient(90deg, ${accent}2E 0%, rgba(36,22,72,0.72) 55%, rgba(20,12,40,0.5) 100%)`
+                                      : `linear-gradient(90deg, ${accent}1A 0%, rgba(20,12,40,0.45) 55%, rgba(20,12,40,0.25) 100%)`,
+                                    border: isHighlighted
+                                      ? `1px solid ${accent}8C`
+                                      : `1px solid ${accent}26`,
+                                    boxShadow: isHighlighted
+                                      ? `inset 0 0 0 1px ${withAlpha(accent, 0.35)}, 0 0 22px ${withAlpha(accent, 0.35)}`
+                                      : `inset 0 0 0 1px transparent, 0 0 0 transparent`,
                                     letterSpacing: 0,
+                                    animation: isHighlighted ? 'ledgerCardBreath 2.4s ease-in-out infinite' : 'none',
                                   }}
                                 >
                                   {/* Severity rail */}
                                   <div
                                     className="self-stretch"
-                                    style={{ background: accent, boxShadow: `0 0 14px ${accent}` }}
+                                    style={{
+                                      background: accent,
+                                      boxShadow: isHighlighted
+                                        ? `0 0 20px ${accent}`
+                                        : `0 0 14px ${accent}`,
+                                    }}
                                   />
 
                                   {/* Content (stacked: meta + subject) */}
@@ -3099,8 +3296,13 @@ export default function App() {
                                     className="inline-flex items-center gap-[10px] shrink-0 self-center font-art-mono text-[16px] uppercase rounded-full px-[20px] py-[10px]"
                                     style={{
                                       backgroundColor: `${statusColor}1F`,
-                                      border: `1px solid ${statusColor}66`,
+                                      border: isHighlighted
+                                        ? `1px solid ${statusColor}AA`
+                                        : `1px solid ${statusColor}66`,
                                       color: statusColor,
+                                      boxShadow: isHighlighted
+                                        ? `0 0 14px ${withAlpha(statusColor, 0.45)}`
+                                        : 'none',
                                     }}
                                   >
                                     <span
@@ -3164,6 +3366,48 @@ export default function App() {
                 )}
             </div>
         </div>
+
+        <style>{`
+          .alert-side-stripe-flow {
+            background-image: repeating-linear-gradient(
+              var(--stripe-angle, -34deg),
+              transparent 0 10px,
+              var(--stripe-accent) 10px 20px,
+              transparent 20px 34px
+            );
+            background-size: 100% 120px;
+            background-position: 0 0;
+            animation: alertStripeFlow 1.7s linear infinite, alertStripeBreath 2.6s ease-in-out infinite;
+            mask-image: linear-gradient(to bottom, transparent 0%, black 6%, black 94%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 6%, black 94%, transparent 100%);
+          }
+          @keyframes alertStripeFlow {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 120px; }
+          }
+          @keyframes alertStripeBreath {
+            0%, 100% { opacity: 0.45; filter: saturate(0.95) brightness(0.9); }
+            50% { opacity: 1; filter: saturate(1.18) brightness(1.12); }
+          }
+          @keyframes ledgerCardBreath {
+            0%, 100% {
+              filter: brightness(1);
+            }
+            50% {
+              filter: brightness(1.16);
+            }
+          }
+          @keyframes p1AlarmBreath {
+            0%, 100% {
+              opacity: 0.6;
+              transform: scale(1);
+            }
+            50% {
+              opacity: 1;
+              transform: scale(1.03);
+            }
+          }
+        `}</style>
 
       </div>
     </div>
