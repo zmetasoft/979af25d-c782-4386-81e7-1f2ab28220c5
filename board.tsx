@@ -783,9 +783,7 @@ const ALARM_AUTO_CYCLE_STEP_MS =
   POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS + LANDMARK_PLAY_HOLD_MS;
 const MANUAL_PLAYBACK_RESUME_DELAY_MS =
   ALARM_AUTO_CYCLE_STEP_MS + LEDGER_CLICK_PAUSE_MS;
-const GLOBE_ACTIVE_LANDMARK_LAYER_NAME = '故障点位（Active）';
 const AI_BOARD_WIDGET_EVENT_MESSAGE_TYPE = 'zmeta-ai-board-widget:event';
-const DEBUG_GLOBE_CLICK = true;
 
 function resolveCurrentVisdocId(): string {
   const previewMatch = window.location.pathname.match(/^\/preview\/([^/]+)/);
@@ -814,44 +812,6 @@ function deepClone<T>(value: T): T {
     return globalThis.structuredClone(value);
   }
   return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function logGlobeClickDebug(...args: unknown[]) {
-  if (!DEBUG_GLOBE_CLICK) {
-    return;
-  }
-  console.debug('[ai-board][globe-click]', ...args);
-}
-
-function resolveLandmarkLayerSeverity(
-  layerConfig: Record<string, any>
-): 'P1' | 'P2' | null {
-  const categoryValue = String(layerConfig.categoryValue ?? '')
-    .trim()
-    .toUpperCase();
-  if (categoryValue === 'P1' || categoryValue === 'P2') {
-    return categoryValue;
-  }
-
-  const layerName = String(layerConfig.layerName ?? '')
-    .trim()
-    .toUpperCase();
-  if (layerName.includes('P1')) {
-    return 'P1';
-  }
-  if (layerName.includes('P2')) {
-    return 'P2';
-  }
-
-  const iconId = String(layerConfig.iconId ?? '').trim();
-  if (iconId.includes('红')) {
-    return 'P1';
-  }
-  if (iconId.includes('蓝')) {
-    return 'P2';
-  }
-
-  return null;
 }
 
 function buildAlarmLandmarkIdentity(point: AlarmLandmarkPoint): string {
@@ -2969,15 +2929,6 @@ export default function App() {
       if (configuredDatasets.length > 0) {
         return configuredDatasets;
       }
-      logGlobeClickDebug(
-        'configured landmark datasets missing in runtime, fallback to local dataset',
-        {
-          configuredLandmarkDatasetIds: Array.from(
-            configuredLandmarkDatasetIds
-          ),
-          runtimeDatasetIds: runtimeDatasets.map((dataset) => dataset.id),
-        }
-      );
     }
 
     return fallbackFaultDataset ? [fallbackFaultDataset] : [];
@@ -3135,11 +3086,6 @@ export default function App() {
         return;
       }
 
-      logGlobeClickDebug('manual playback trigger', {
-        source,
-        targetIndex,
-        landmarksCount: alarmLandmarks.length,
-      });
       setAutoCycleRoundLimit(null);
       setCurrentStory('ALARM_EVENT');
       setIsAutoCycleEnabled(false);
@@ -3407,11 +3353,6 @@ export default function App() {
     }
 
     const targetIndex = addedEntries[0]?.index ?? 0;
-    logGlobeClickDebug('detected new alarm landmarks, trigger auto playback', {
-      addedCount: addedEntries.length,
-      targetIndex,
-      landmarksCount: alarmLandmarks.length,
-    });
 
     if (autoCycleResumeTimerRef.current !== null) {
       window.clearTimeout(autoCycleResumeTimerRef.current);
@@ -3570,21 +3511,9 @@ export default function App() {
       }
 
       if (targetIndex < 0) {
-        logGlobeClickDebug('ignore landmark click: no matching point', {
-          clickedNumber,
-          clickedRefId,
-          clickedLon,
-          clickedLat,
-          landmarksCount: alarmLandmarks.length,
-        });
         return;
       }
 
-      logGlobeClickDebug('manual landmark click playback', {
-        targetIndex,
-        clickedNumber,
-        clickedRefId,
-      });
       triggerManualPlayback(targetIndex, 'globe');
     };
 
@@ -3605,7 +3534,6 @@ export default function App() {
       return;
     }
     if (!globeWidgetTemplate) {
-      logGlobeClickDebug('skip cycle effect: globe widget template not ready');
       return;
     }
 
@@ -3615,9 +3543,6 @@ export default function App() {
         lastHandledManualPlaybackRequestIdRef.current;
 
     if (!isAutoCycleEnabled && !hasManualPlaybackRequest) {
-      logGlobeClickDebug('skip cycle effect: auto cycle disabled', {
-        hasManualPlaybackRequest,
-      });
       return;
     }
 
@@ -3626,12 +3551,8 @@ export default function App() {
     const postGlobeUpdate = (widget: Record<string, unknown>) => {
       const visdocId = resolveCurrentVisdocId();
       if (!visdocId) {
-        logGlobeClickDebug('skip widget update: visdoc id not found');
         return;
       }
-      logGlobeClickDebug('post widget update', {
-        visdocId,
-      });
       window.postMessage(
         {
           type: 'zmeta-ai-board-widget:update',
@@ -3643,8 +3564,7 @@ export default function App() {
     };
 
     const buildPlaybackWidget = (
-      point: AlarmLandmarkPoint,
-      animationEnabled: boolean
+      point: AlarmLandmarkPoint
     ): Record<string, unknown> => {
       const widget = deepClone(globeWidgetTemplate) as Record<string, any>;
       const currentConfig =
@@ -3687,164 +3607,6 @@ export default function App() {
         },
       };
 
-      if (Array.isArray(widget.dataConfig)) {
-        const sourceDataConfig = widget.dataConfig as Record<string, any>[];
-        const baseDataConfig = sourceDataConfig.filter((item) => {
-          const layerConfig = item?.config as Record<string, any> | undefined;
-          return !(
-            layerConfig?.layerType === 'landmark' &&
-            layerConfig?.layerName === GLOBE_ACTIVE_LANDMARK_LAYER_NAME
-          );
-        });
-
-        const hasNumberRawValue =
-          point.numberRaw !== null &&
-          point.numberRaw !== undefined &&
-          (typeof point.numberRaw !== 'string' ||
-            point.numberRaw.trim().length > 0);
-        const activeCategoryField = hasNumberRawValue ? 'Number' : 'Ref Id';
-        const activeCategoryValue =
-          activeCategoryField === 'Number' ? point.number : point.refId;
-        const activeCategoryRawValue =
-          activeCategoryField === 'Number' ? point.numberRaw : point.refIdRaw;
-        const activeCategoryFilterValue =
-          activeCategoryRawValue === null ||
-          activeCategoryRawValue === undefined ||
-          (typeof activeCategoryRawValue === 'string' &&
-            activeCategoryRawValue.trim().length === 0)
-            ? activeCategoryValue
-            : activeCategoryRawValue;
-        const canActivateSinglePoint =
-          typeof activeCategoryValue === 'string' &&
-          activeCategoryValue.trim().length > 0;
-
-        let activeLayerTemplate: Record<string, any> | null = null;
-
-        const normalizedDataConfig = baseDataConfig.map(
-          (item: Record<string, any>) => {
-            const layerConfig = item?.config as Record<string, any> | undefined;
-            if (!layerConfig || layerConfig.layerType !== 'landmark') {
-              return item;
-            }
-
-            const layerSeverity = resolveLandmarkLayerSeverity(layerConfig);
-            if (layerSeverity === point.severity && !activeLayerTemplate) {
-              activeLayerTemplate = item;
-            }
-
-            const style = (layerConfig.style as Record<string, any>) ?? {};
-            const isActiveSeverityLayer =
-              animationEnabled &&
-              canActivateSinglePoint &&
-              layerSeverity === point.severity;
-            const nextFields = Array.isArray(item.fields)
-              ? (item.fields as Array<Record<string, any>>).map((field) => ({
-                  ...field,
-                }))
-              : [];
-            const hasActiveCategoryField = nextFields.some(
-              (field) =>
-                String(field?.name ?? '')
-                  .trim()
-                  .toLowerCase() === activeCategoryField.toLowerCase()
-            );
-            if (isActiveSeverityLayer && !hasActiveCategoryField) {
-              nextFields.push({
-                name: activeCategoryField,
-                type: 'string',
-              });
-            }
-            const nextFilters = Array.isArray(item.filters)
-              ? (item.filters as Array<Record<string, any>>).map((filter) => ({
-                  ...filter,
-                }))
-              : [];
-            if (isActiveSeverityLayer) {
-              nextFilters.push({
-                field: activeCategoryField,
-                operator: '!=',
-                value: activeCategoryFilterValue,
-              });
-            }
-            return {
-              ...item,
-              fields: nextFields,
-              filters: nextFilters,
-              config: {
-                ...layerConfig,
-                enabled: true,
-                style: {
-                  ...style,
-                  animationEnabled: false,
-                },
-              },
-            };
-          }
-        );
-
-        if (activeLayerTemplate && animationEnabled && canActivateSinglePoint) {
-          const activeConfig = activeLayerTemplate.config as Record<
-            string,
-            any
-          >;
-          const activeStyle = (activeConfig.style as Record<string, any>) ?? {};
-          const activeFields = Array.isArray(activeLayerTemplate.fields)
-            ? (activeLayerTemplate.fields as Array<Record<string, any>>).map(
-                (field) => ({ ...field })
-              )
-            : [];
-          const hasActiveCategoryField = activeFields.some(
-            (field) =>
-              String(field?.name ?? '')
-                .trim()
-                .toLowerCase() === activeCategoryField.toLowerCase()
-          );
-          if (!hasActiveCategoryField) {
-            activeFields.push({
-              name: activeCategoryField,
-              type: 'string',
-            });
-          }
-          const activeLayerFilters = Array.isArray(activeLayerTemplate.filters)
-            ? (activeLayerTemplate.filters as Array<Record<string, any>>).map(
-                (filter) => ({ ...filter })
-              )
-            : [];
-          activeLayerFilters.push({
-            field: activeCategoryField,
-            operator: '=',
-            value: activeCategoryFilterValue,
-          });
-          normalizedDataConfig.push({
-            ...activeLayerTemplate,
-            fields: activeFields,
-            filters: activeLayerFilters,
-            config: {
-              ...activeConfig,
-              layerName: GLOBE_ACTIVE_LANDMARK_LAYER_NAME,
-              enabled: true,
-              categoryField: activeCategoryField,
-              categoryValue: activeCategoryValue,
-              style: {
-                ...activeStyle,
-                animationEnabled: true,
-              },
-            },
-          });
-        } else if (animationEnabled && !canActivateSinglePoint) {
-          logGlobeClickDebug(
-            'skip active landmark layer: empty category value',
-            {
-              activeCategoryField,
-              activeCategoryValue,
-              point,
-            }
-          );
-        }
-
-        widget.dataConfig = normalizedDataConfig;
-      }
-
       return widget;
     };
 
@@ -3864,35 +3626,15 @@ export default function App() {
 
       const point = alarmLandmarks[index];
       if (!point) {
-        logGlobeClickDebug('playCycle abort: point not found', {
-          index,
-          landmarksCount: alarmLandmarks.length,
-        });
         return;
       }
-      logGlobeClickDebug('playCycle start', {
-        index,
-        point,
-        source: options.source,
-        allowLoop: options.allowLoop,
-        playedSteps,
-        maxSteps: options.maxSteps,
-      });
 
       setActiveLandmarkIndex(index);
       if (options.source !== 'click') {
         setVisibleLedgerNumber('');
       }
       setAlertPopupPhase('hidden');
-      postGlobeUpdate(buildPlaybackWidget(point, false));
-
-      const animateTimer = window.setTimeout(() => {
-        if (cancelled) {
-          return;
-        }
-        postGlobeUpdate(buildPlaybackWidget(point, true));
-      }, GLOBE_TRANSITION_TOTAL_MS);
-      timers.add(animateTimer);
+      postGlobeUpdate(buildPlaybackWidget(point));
 
       const revealTimer = window.setTimeout(() => {
         if (cancelled) {
@@ -3908,18 +3650,10 @@ export default function App() {
           const reachedRoundLimit =
             options.maxSteps !== null && playedSteps + 1 >= options.maxSteps;
           if (reachedRoundLimit) {
-            logGlobeClickDebug('playCycle round completed', {
-              playedSteps: playedSteps + 1,
-              maxSteps: options.maxSteps,
-            });
             options.onLoopComplete?.();
             return;
           }
           const nextIndex = (index + 1) % alarmLandmarks.length;
-          logGlobeClickDebug('playCycle schedule next', {
-            index,
-            nextIndex,
-          });
           playCycle(nextIndex, options, playedSteps + 1);
         }, ALARM_AUTO_CYCLE_STEP_MS);
         timers.add(nextTimer);
@@ -3956,14 +3690,6 @@ export default function App() {
           }
         : null,
     } as const;
-    logGlobeClickDebug('cycle effect start', {
-      normalizedStartIndex,
-      cycleStartIndex,
-      isAutoCycleEnabled,
-      hasManualPlaybackRequest,
-      source: playbackOptions.source,
-      maxSteps: playbackOptions.maxSteps,
-    });
     playCycle(normalizedStartIndex, playbackOptions);
 
     return () => {
