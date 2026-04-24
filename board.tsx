@@ -3043,6 +3043,21 @@ export default function App() {
       ),
     ];
   }, [alarmLandmarks]);
+  const alarmSeverityCounts = useMemo(
+    () =>
+      alarmLandmarks.reduce(
+        (acc, item) => {
+          if (item.severity === 'P1') {
+            acc.p1 += 1;
+          } else if (item.severity === 'P2') {
+            acc.p2 += 1;
+          }
+          return acc;
+        },
+        { p1: 0, p2: 0 }
+      ),
+    [alarmLandmarks]
+  );
   const p1FaultCableSignature = p1FaultCableNames.join('|');
   const ledgerEvents = useMemo(() => {
     const filtered = alarmLandmarks.filter((item) =>
@@ -5157,7 +5172,7 @@ export default function App() {
                 {renderLeftMetricCard(
                   'Critical',
                   <span className="text-[#FF375E]">
-                    <AnimatedNumber value={1} />
+                    <AnimatedNumber value={alarmSeverityCounts.p1} />
                   </span>,
                   Warning,
                   'coral'
@@ -5165,7 +5180,7 @@ export default function App() {
                 {renderLeftMetricCard(
                   'Warning',
                   <span className="text-[#FF5F1D]">
-                    <AnimatedNumber value={2} />
+                    <AnimatedNumber value={alarmSeverityCounts.p2} />
                   </span>,
                   Warning,
                   'orange'

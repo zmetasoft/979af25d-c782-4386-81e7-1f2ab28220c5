@@ -126,8 +126,8 @@
             },
             "style": {
               "sizeMode": "world",
-              "worldSize": 56,
-              "screenSizePx": 56,
+              "worldSize": 64,
+              "screenSizePx": 64,
               "animationEnabled": true,
               "animationDurationMs": 1000,
               "animationLoopGapMs": 0,
@@ -184,8 +184,58 @@
             },
             "style": {
               "sizeMode": "world",
-              "worldSize": 56,
-              "screenSizePx": 56,
+              "worldSize": 30,
+              "screenSizePx": 30,
+              "animationEnabled": true,
+              "animationDurationMs": 1000,
+              "animationLoopGapMs": 0,
+              "presenceAnimation": {
+                "enabled": false,
+                "appearMs": 260,
+                "disappearMs": 220
+              }
+            }
+          },
+          "filters": [],
+          "sorts": []
+        },
+        {
+          "datasetId": "41cb8e07-da93-465a-99d7-571c2cc5412a",
+          "fields": [
+            {
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "name": "longitude",
+              "type": "number"
+            },
+            {
+              "name": "latitude",
+              "type": "number"
+            }
+          ],
+          "config": {
+            "layerType": "landmark",
+            "layerName": "数据中心点位",
+            "enabled": true,
+            "iconId": "数据中心",
+            "categoryField": "",
+            "categoryValue": "",
+            "labelCard": {
+              "mode": "none",
+              "titleField": "name",
+              "contentField": ""
+            },
+            "fields": {
+              "lonField": "longitude",
+              "latField": "latitude",
+              "nameField": "name"
+            },
+            "style": {
+              "sizeMode": "world",
+              "worldSize": 15,
+              "screenSizePx": 40,
               "animationEnabled": true,
               "animationDurationMs": 1000,
               "animationLoopGapMs": 0,
