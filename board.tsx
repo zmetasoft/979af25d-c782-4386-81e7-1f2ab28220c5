@@ -431,6 +431,8 @@ const LEDGER_HIGHLIGHT_SYNC_MS = 300;
 const LEDGER_CLICK_PAUSE_MS = 5000;
 const LEDGER_CARD_HEIGHT = 240;
 const LEDGER_CARD_GAP = 14;
+const LEDGER_INITIAL_HIGHLIGHT_TOP = 392;
+const ALERT_CARD_CLICK_REVEAL_DELAY_MS = 80;
 
 type AlertSequenceItem = {
   ticketId: string;
@@ -2875,7 +2877,10 @@ export default function App() {
     return filtered.length > 0 ? filtered : alarmLandmarks;
   }, [alarmLandmarks]);
   const scrollingLedgerEvents = useMemo(
-    () => (ledgerEvents.length > 1 ? [...ledgerEvents, ...ledgerEvents] : ledgerEvents),
+    () =>
+      ledgerEvents.length > 1
+        ? [...ledgerEvents, ...ledgerEvents, ...ledgerEvents]
+        : ledgerEvents,
     [ledgerEvents]
   );
 
@@ -2924,6 +2929,7 @@ export default function App() {
         );
         setIsAutoCycleEnabled(true);
         setIsLedgerScrollPaused(false);
+        setVisibleLedgerNumber('');
         autoCycleResumeTimerRef.current = null;
       }, MANUAL_PLAYBACK_RESUME_DELAY_MS);
     },
@@ -2943,12 +2949,14 @@ export default function App() {
       setCurrentStory('ALARM_EVENT');
       setIsAutoCycleEnabled(false);
       setCycleStartIndex(targetIndex);
-      setVisibleLedgerNumber('');
+      setVisibleLedgerNumber(
+        source === 'ledger' ? alarmLandmarks[targetIndex]?.number ?? '' : ''
+      );
       setIsLedgerScrollPaused(true);
       requestManualPlayback(targetIndex);
       scheduleAutoCycleResume(targetIndex);
     },
-    [alarmLandmarks.length, requestManualPlayback, scheduleAutoCycleResume]
+    [alarmLandmarks, requestManualPlayback, scheduleAutoCycleResume]
   );
   const handleLedgerItemClick = useCallback(
     (pointNumber: string) => {
@@ -2970,6 +2978,14 @@ export default function App() {
     Math.max(1, ledgerEvents.length) *
     (POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS + LANDMARK_PLAY_HOLD_MS);
   const activeLandmark = alarmLandmarks[activeLandmarkIndex] ?? null;
+  const activeLedgerNumber = visibleLedgerNumber;
+  const ledgerScrollSpeedPxPerMs =
+    ledgerScrollDurationMs > 0
+      ? ledgerScrollDistance / ledgerScrollDurationMs
+      : 0;
+  const ledgerInitialOffset =
+    LEDGER_INITIAL_HIGHLIGHT_TOP +
+    ledgerScrollSpeedPxPerMs * LEDGER_HIGHLIGHT_SYNC_MS;
   const activeAlertTemplate =
     ALERT_SEQUENCE[activeLandmark?.severity === 'P2' ? 1 : 0] ??
     ALERT_SEQUENCE[0];
@@ -3153,7 +3169,9 @@ export default function App() {
 
   useEffect(() => {
     if (alertPopupPhase !== 'visible' || !activeLandmark?.number) {
-      setVisibleLedgerNumber('');
+      if (isAutoCycleEnabled) {
+        setVisibleLedgerNumber('');
+      }
       return;
     }
 
@@ -3162,7 +3180,7 @@ export default function App() {
     }, LEDGER_HIGHLIGHT_SYNC_MS);
 
     return () => window.clearTimeout(timer);
-  }, [activeLandmark?.number, alertPopupPhase]);
+  }, [activeLandmark?.number, alertPopupPhase, isAutoCycleEnabled]);
 
   useEffect(() => {
     const handleWidgetEvent = (event: MessageEvent) => {
@@ -3540,7 +3558,9 @@ export default function App() {
       });
 
       setActiveLandmarkIndex(index);
-      setVisibleLedgerNumber('');
+      if (options.source !== 'click') {
+        setVisibleLedgerNumber('');
+      }
       setAlertPopupPhase('hidden');
       postGlobeUpdate(buildPlaybackWidget(point, false));
 
@@ -3557,7 +3577,9 @@ export default function App() {
           return;
         }
         setAlertPopupPhase('visible');
-      }, POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS);
+      }, options.source === 'click'
+        ? ALERT_CARD_CLICK_REVEAL_DELAY_MS
+        : POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS);
       timers.add(revealTimer);
 
       if (options.allowLoop) {
@@ -5087,17 +5109,14 @@ export default function App() {
                     >
                       {scrollingLedgerEvents.length > 0 ? (
                         <div
-                          className="flex flex-col gap-[14px] pr-[8px] event-ledger-scroll-track"
+                          className="flex flex-col gap-[14px] pr-[8px] animate-ledger-free-scroll"
                           style={{
                             ['--ledger-scroll-distance' as any]: `${ledgerScrollDistance}px`,
+                            ['--ledger-scroll-start' as any]: `${-ledgerScrollDistance + ledgerInitialOffset}px`,
                             animationDuration: `${ledgerScrollDurationMs}ms`,
                             animationPlayState: isLedgerScrollPaused
                               ? 'paused'
                               : 'running',
-                            animationName:
-                              ledgerEvents.length > 1
-                                ? 'eventLedgerAutoScroll'
-                                : 'none',
                           }}
                         >
                           {scrollingLedgerEvents.map((t, idx) => {
@@ -5105,12 +5124,12 @@ export default function App() {
                               t.severity === 'P1'
                                 ? '#FF375E'
                                 : t.severity === 'P2'
-                                ? '#3B82F6'
+                                ? '#FF5F1D'
                                 : '#8E9AA0';
                             const statusColor =
                               LEDGER_STATUS_COLORS[t.status] ?? '#8E9AA0';
                             const isHighlighted =
-                              t.number === visibleLedgerNumber;
+                              t.number === activeLedgerNumber;
                             return (
                               <div
                                 key={`${t.number}-${idx}`}
@@ -5126,7 +5145,7 @@ export default function App() {
                                     handleLedgerItemClick(t.number);
                                   }
                                 }}
-                                className="relative grid items-center shrink-0 px-[32px] py-[40px] min-h-[240px] cursor-pointer outline-none"
+                                className="relative grid items-center shrink-0 px-[32px] py-[40px] h-[240px] cursor-pointer outline-none"
                                 style={{
                                   gridTemplateColumns: '3px 1fr auto',
                                   columnGap: 32,
@@ -5291,23 +5310,18 @@ export default function App() {
         </div>
 
         <style>{`
-          .event-ledger-scroll-track {
+          .animate-ledger-free-scroll {
+            animation-name: ledgerFreeScroll;
             animation-timing-function: linear;
             animation-iteration-count: infinite;
-            animation-fill-mode: both;
             will-change: transform;
-            transform: translate3d(0, 0, 0);
           }
-          @keyframes eventLedgerAutoScroll {
+          @keyframes ledgerFreeScroll {
             0% {
-              transform: translate3d(0, 0, 0);
+              transform: translateY(var(--ledger-scroll-start, 0px));
             }
             100% {
-              transform: translate3d(
-                0,
-                calc(var(--ledger-scroll-distance, 0px) * -1),
-                0
-              );
+              transform: translateY(calc(var(--ledger-scroll-start, 0px) - var(--ledger-scroll-distance, 0px)));
             }
           }
           .alert-side-stripe-flow {
