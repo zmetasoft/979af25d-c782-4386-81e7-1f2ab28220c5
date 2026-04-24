@@ -272,5 +272,47 @@
     "$modelType": "dashboard/FileDatasetModel",
     "id": "683dea89-f65d-4ae5-a0df-5c0578ac4afe",
     "scope": "local"
+  },
+  {
+    "name": "数据中心位置坐标",
+    "type": "file",
+    "datasourceId": "22e298a8-a157-4d19-a6ba-1a75e41d6d97",
+    "config": {},
+    "fields": [
+      {
+        "name": "feature_index",
+        "type": "number"
+      },
+      {
+        "name": "feature_id",
+        "type": "number"
+      },
+      {
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "name": "category",
+        "type": "string"
+      },
+      {
+        "name": "longitude",
+        "type": "number"
+      },
+      {
+        "name": "latitude",
+        "type": "number"
+      },
+      {
+        "name": "geometry_type",
+        "type": "string"
+      },
+      {
+        "name": "coordinate_source",
+        "type": "string"
+      }
+    ],
+    "$modelType": "dashboard/FileDatasetModel",
+    "id": "41cb8e07-da93-465a-99d7-571c2cc5412a"
   }
 ]

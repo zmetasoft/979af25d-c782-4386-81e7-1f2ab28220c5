@@ -52,5 +52,14 @@
     },
     "$modelType": "dashboard/DatasourceModel",
     "id": "8f6a9217-fc0a-432e-8368-7d0c3ce5bb0d"
+  },
+  {
+    "name": "file-datasource",
+    "type": "file",
+    "config": {
+      "dataId": "3831220c-5d7e-4feb-ac37-c3be6712ba8e"
+    },
+    "$modelType": "dashboard/DatasourceModel",
+    "id": "22e298a8-a157-4d19-a6ba-1a75e41d6d97"
   }
 ]

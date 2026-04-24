@@ -81,10 +81,10 @@ const ALERT_ROTATION_INTERVAL_MS = 9000;
 const ALERT_POPUP_REVEAL_DELAY_MS =
   ALERT_CAMERA_PULL_BACK_MS - ALERT_POPUP_TRANSITION_MS;
 const MIDDLE_EAST_3D_MAP_CAMERA_VIEW = {
-  center: { lon: 54.963878, lat: 18.059414 },
-  cameraDistance: 1226.8,
-  bearing: 89.4,
-  pitch: 17.7,
+  center: { lon: 49.765794, lat: 9.467088 },
+  cameraDistance: 1404.8,
+  bearing: 86.7,
+  pitch: 36.8,
 } as const;
 const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
   {
@@ -106,9 +106,15 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
       path: {
         orderDirection: 'asc',
         groupField: { name: 'cable_name' },
+        smoothing: {
+          enabled: true,
+          sampleStep: 1,
+          subdivisions: 4,
+          curvature: 0,
+        },
       },
       style: {
-        color: '#FAFEFF',
+        color: '#3CC0E2',
         opacity: 0.1,
         thicknessScale: 0.002,
         effectPreset: 'comet',
@@ -116,6 +122,7 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
         flowSpeed: 0.4,
         glowIntensity: 20,
       },
+      heightOffset: 0.035,
     },
     filters: [],
     sorts: [],
@@ -136,7 +143,7 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
         latField: { name: 'Latitude' },
       },
       markerModelId: 'custom:红色标点.glb',
-      size: { scale: 0.05, randomness: 0.3 },
+      size: { scale: 0.08, randomness: 0.02 },
       label: { fields: [] },
       animation: {
         enabled: true,
@@ -161,10 +168,10 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
         nameField: { name: 'region_name' },
       },
       style: {
-        color: '#FFFFFF',
+        color: '#E4F8E3',
         opacity: 0.2,
         effectPreset: 'stripe-flow',
-        flowSpeed: 50,
+        flowSpeed: 30,
         flowDensity: 5000,
         flowAngle: 45,
       },
@@ -177,32 +184,57 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
     sorts: [],
   },
   {
-    datasetId: '7d941011-67c5-4203-b570-683af97867dc',
+    datasetId: '1941c631-34fd-42f4-bec7-fbfb25bde290',
     fields: [
-      { id: '4e174ade-8e09-401a-8fc2-a6b7f7319f36', name: 'lon', type: 'number' },
-      { id: '47197b9b-191b-4c51-8b12-2789e030fab7', name: 'lat', type: 'number' },
+      { id: 'cae649f5-fdd8-43b8-ae8b-0e273f0cc1e5', name: 'longitude', type: 'number' },
+      { id: '91f2892a-dee1-4848-a4cf-bc51342de1e0', name: 'latitude', type: 'number' },
     ],
     config: {
-      layerType: 'pillar',
-      layerName: '立柱图层',
-      visible: false,
+      layerType: 'marker',
+      layerName: '拓扑点',
+      visible: true,
       position: {
         type: 'geographic',
-        lonField: { name: 'lon' },
-        latField: { name: 'lat' },
+        lonField: { name: 'longitude' },
+        latField: { name: 'latitude' },
       },
-      height: {
-        minRatio: 0.01,
-        scale: 0.3,
-        radiusScale: 0.01,
-        heightRandomness: 0.5,
-      },
+      heightOffset: 0.035,
+      size: { scale: 0.015, randomness: 0 },
       label: { fields: [] },
-      style: {
-        effectPreset: 'gradient',
-        baseColor: '#000000',
-        glowIntensity: 1,
+      animation: {
+        enabled: true,
+        appearMs: 260,
+        disappearMs: 220,
       },
+      markerModelId: 'custom:小型点位.glb',
+    },
+    filters: [],
+    sorts: [],
+  },
+  {
+    datasetId: '41cb8e07-da93-465a-99d7-571c2cc5412a',
+    fields: [
+      { id: '5744b298-16aa-4900-80a4-1dde99c1df3b', name: 'longitude', type: 'number' },
+      { id: 'dccd6a8b-dcdb-47e6-80ae-9ac7cd7f08de', name: 'latitude', type: 'number' },
+    ],
+    config: {
+      layerType: 'marker',
+      layerName: '数据中心',
+      visible: true,
+      position: {
+        type: 'geographic',
+        lonField: { name: 'longitude' },
+        latField: { name: 'latitude' },
+      },
+      heightOffset: 0.035,
+      size: { scale: 0.02, randomness: 0.02 },
+      label: { fields: [] },
+      animation: {
+        enabled: true,
+        appearMs: 260,
+        disappearMs: 220,
+      },
+      markerModelId: 'custom:数据中心.glb',
     },
     filters: [],
     sorts: [],
@@ -677,6 +709,49 @@ function resolveLandmarkLayerSeverity(
   return null;
 }
 
+function formatSentenceHeadline(value: unknown): string {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) {
+    return '--';
+  }
+
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function formatCoordinate(value: unknown): string {
+  const numericValue = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return '--';
+  }
+
+  return numericValue.toFixed(3);
+}
+
+function formatElapsedDuration(
+  startValue: unknown,
+  endValue: unknown,
+  fallbackNow: Date
+): string {
+  const startTime = new Date(String(startValue ?? '')).getTime();
+  if (!Number.isFinite(startTime)) {
+    return '--';
+  }
+
+  const explicitEndTime = new Date(String(endValue ?? '')).getTime();
+  const endTime = Number.isFinite(explicitEndTime)
+    ? explicitEndTime
+    : fallbackNow.getTime();
+  const totalMinutes = Math.max(0, Math.floor((endTime - startTime) / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) {
+    return `${minutes}m`;
+  }
+
+  return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+}
+
 function renderAlertCardContent(
   item: AlertSequenceItem,
   ticket: any,
@@ -806,6 +881,10 @@ function renderAlertCardContent(
             const isDone = statusText === 'Done';
             const statusSegments = 5;
             const activeStatusSegments = isDone ? statusSegments : statusText === 'In Progress' ? 2 : 1;
+            const durationPct = Math.max(
+              8,
+              Math.min(100, Number.isFinite(item.progressPct) ? item.progressPct : 35)
+            );
             const rows: {
               label: string;
               icon: ReactNode;
@@ -2791,6 +2870,8 @@ export default function App() {
   );
   const [now, setNow] = useState(() => new Date());
   const ledgerViewportRef = useRef<HTMLDivElement | null>(null);
+  const ledgerResumeTimerRef = useRef<number | null>(null);
+  const [visibleLedgerNumber, setVisibleLedgerNumber] = useState('');
   const ledgerItemRefs = useRef<Array<HTMLDivElement | null>>([]);
   const manualPlaybackRequestIdRef = useRef(0);
   const lastHandledManualPlaybackRequestIdRef = useRef(0);
