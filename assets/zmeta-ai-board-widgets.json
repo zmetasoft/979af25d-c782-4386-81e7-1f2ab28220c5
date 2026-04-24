@@ -71,7 +71,7 @@
               "orderDirection": "asc"
             },
             "style": {
-              "color": "#3CC0E2",
+              "color": "#EAF4FF",
               "opacity": 0.14,
               "thicknessScale": 2,
               "effectPreset": "comet",
@@ -234,7 +234,7 @@
               }
             },
             "style": {
-              "color": "#3CC0E2",
+              "color": "#EAF4FF",
               "opacity": 0.1,
               "thicknessScale": 0.002,
               "effectPreset": "comet",
@@ -242,7 +242,61 @@
               "flowSpeed": 0.4,
               "glowIntensity": 20
             },
-            "heightOffset": 0.035
+            "heightOffset": 0.035,
+            "styleRules": [
+              {
+                "field": "cable_name",
+                "value": "IMEWE",
+                "style": {
+                  "color": "#FF1E2D",
+                  "opacity": 0.1,
+                  "effectPreset": "comet",
+                  "flowDirection": "reverse",
+                  "flowSpeed": 0.86,
+                  "glowIntensity": 1,
+                  "thicknessScale": 0.004
+                }
+              },
+              {
+                "field": "cable_name",
+                "value": "IMEWE main",
+                "style": {
+                  "color": "#FF1E2D",
+                  "opacity": 0.1,
+                  "effectPreset": "comet",
+                  "flowDirection": "reverse",
+                  "flowSpeed": 0.86,
+                  "glowIntensity": 1,
+                  "thicknessScale": 0.004
+                }
+              },
+              {
+                "field": "cable_name",
+                "value": "IMEWE protection",
+                "style": {
+                  "color": "#FF1E2D",
+                  "opacity": 0.1,
+                  "effectPreset": "comet",
+                  "flowDirection": "reverse",
+                  "flowSpeed": 0.86,
+                  "glowIntensity": 1,
+                  "thicknessScale": 0.004
+                }
+              },
+              {
+                "field": "cable_name",
+                "value": "Indian Europe Xpress (IEX)",
+                "style": {
+                  "color": "#FF1E2D",
+                  "opacity": 0.1,
+                  "effectPreset": "comet",
+                  "flowDirection": "reverse",
+                  "flowSpeed": 0.86,
+                  "glowIntensity": 1,
+                  "thicknessScale": 0.004
+                }
+              }
+            ]
           },
           "filters": [],
           "sorts": [],

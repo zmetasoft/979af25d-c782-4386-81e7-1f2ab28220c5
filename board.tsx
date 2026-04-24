@@ -88,6 +88,9 @@ const MIDDLE_EAST_3D_MAP_CAMERA_VIEW = {
   bearing: 86.7,
   pitch: 36.8,
 } as const;
+const P1_CABLE_STYLE_RULE_ALIASES: Record<string, string[]> = {
+  IMEWE: ['IMEWE', 'IMEWE main', 'IMEWE protection'],
+};
 const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
   {
     datasetId: '1941c631-34fd-42f4-bec7-fbfb25bde290',
@@ -128,7 +131,7 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
         },
       },
       style: {
-        color: '#3CC0E2',
+        color: '#EAF4FF',
         opacity: 0.1,
         thicknessScale: 0.002,
         effectPreset: 'comet',
@@ -285,6 +288,48 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
   },
 ] as const;
 
+function buildP1CableStyleRules(cableNames: readonly string[] = []) {
+  const expandedCableNames = cableNames.flatMap((name) => {
+    const normalizedName = name.trim();
+    return P1_CABLE_STYLE_RULE_ALIASES[normalizedName] ?? [normalizedName];
+  });
+
+  return [...new Set(expandedCableNames.map((name) => name.trim()).filter(Boolean))].map(
+    (cableName) => ({
+      field: 'cable_name',
+      value: cableName,
+      style: {
+        color: '#FF1E2D',
+        opacity: 0.1,
+        thicknessScale: 0.004,
+        effectPreset: 'comet',
+        flowDirection: 'reverse',
+        flowSpeed: 0.86,
+        glowIntensity: 1,
+      },
+    })
+  );
+}
+
+function buildMiddleEast3dMapDataConfig(p1CableNames: readonly string[] = []) {
+  const p1StyleRules = buildP1CableStyleRules(p1CableNames);
+  if (p1StyleRules.length === 0) {
+    return MIDDLE_EAST_3D_MAP_DATA_CONFIG;
+  }
+
+  const connectionLayer = MIDDLE_EAST_3D_MAP_DATA_CONFIG[0];
+  return [
+    {
+      ...connectionLayer,
+      config: {
+        ...connectionLayer.config,
+        styleRules: p1StyleRules,
+      },
+    },
+    ...MIDDLE_EAST_3D_MAP_DATA_CONFIG.slice(1),
+  ];
+}
+
 function buildMiddleEast3dMapWidget(runtimeCameraCommand?: {
   type: 'fly-to';
   commandId: string;
@@ -300,7 +345,7 @@ function buildMiddleEast3dMapWidget(runtimeCameraCommand?: {
   durationMs?: number;
   pullBackDurationMs?: number;
   pushInDurationMs?: number;
-}) {
+}, p1CableNames: readonly string[] = []) {
   return {
     id: 'middle-east-3d-map',
     type: 'extruded-map',
@@ -318,7 +363,7 @@ function buildMiddleEast3dMapWidget(runtimeCameraCommand?: {
       cameraView: MIDDLE_EAST_3D_MAP_CAMERA_VIEW,
       ...(runtimeCameraCommand ? { runtimeCameraCommand } : {}),
     },
-    dataConfig: MIDDLE_EAST_3D_MAP_DATA_CONFIG,
+    dataConfig: buildMiddleEast3dMapDataConfig(p1CableNames),
     layout: {
       minHeight: 900,
     },
@@ -2942,6 +2987,18 @@ export default function App() {
       })
       .filter((item): item is AlarmLandmarkPoint => item !== null);
   }, [alarmSourceDatasets]);
+  const p1FaultCableNames = useMemo(() => {
+    return [
+      ...new Set(
+        alarmLandmarks
+          .filter((item) => item.severity === 'P1')
+          .map((item) => item.refId || item.cableName)
+          .map((name) => name.trim())
+          .filter(Boolean)
+      ),
+    ];
+  }, [alarmLandmarks]);
+  const p1FaultCableSignature = p1FaultCableNames.join('|');
   const ledgerEvents = useMemo(() => {
     const filtered = alarmLandmarks.filter((item) =>
       LEDGER_VISIBLE_STATUSES.has(item.status)
@@ -3151,7 +3208,7 @@ export default function App() {
         {
           type: AI_BOARD_WIDGET_UPDATE_EVENT,
           visdocId: AI_BOARD_VISDOC_ID,
-          widget: buildMiddleEast3dMapWidget(runtimeCameraCommand),
+          widget: buildMiddleEast3dMapWidget(runtimeCameraCommand, p1FaultCableNames),
         },
         window.location.origin
       );
@@ -3190,7 +3247,13 @@ export default function App() {
     });
 
     return undefined;
-  }, [currentStory, activeAlert.ticketId, activeAlert.lon, activeAlert.lat]);
+  }, [
+    currentStory,
+    activeAlert.ticketId,
+    activeAlert.lon,
+    activeAlert.lat,
+    p1FaultCableSignature,
+  ]);
 
   useEffect(() => {
     const handleResize = () => {
