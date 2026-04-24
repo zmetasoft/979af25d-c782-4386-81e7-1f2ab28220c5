@@ -429,6 +429,8 @@ const LEDGER_VISIBLE_STATUSES = new Set(['In Progress', 'Done']);
 const ALERT_CARD_ENTER_MS = 800;
 const LEDGER_HIGHLIGHT_SYNC_MS = 300;
 const LEDGER_CLICK_PAUSE_MS = 5000;
+const LEDGER_CARD_HEIGHT = 240;
+const LEDGER_CARD_GAP = 14;
 
 type AlertSequenceItem = {
   ticketId: string;
@@ -638,6 +640,11 @@ const GLOBE_TRANSITION_TOTAL_MS =
   GLOBE_CAMERA_ZOOM_OUT_MS + GLOBE_CAMERA_MOVE_MS + GLOBE_CAMERA_ZOOM_IN_MS;
 const LANDMARK_PLAY_HOLD_MS = 2200;
 const POPUP_HIDE_LEAD_MS = 260;
+const MANUAL_PLAYBACK_RESUME_DELAY_MS =
+  POPUP_HIDE_LEAD_MS +
+  GLOBE_TRANSITION_TOTAL_MS +
+  LANDMARK_PLAY_HOLD_MS +
+  LEDGER_CLICK_PAUSE_MS;
 const GLOBE_ACTIVE_LANDMARK_LAYER_NAME = '故障点位（Active）';
 const AI_BOARD_WIDGET_EVENT_MESSAGE_TYPE = 'zmeta-ai-board-widget:event';
 const DEBUG_GLOBE_CLICK = true;
@@ -2790,13 +2797,23 @@ export default function App() {
     });
 
     if (configuredLandmarkDatasetIds.size > 0) {
-      return Array.from(configuredLandmarkDatasetIds)
+      const configuredDatasets = Array.from(configuredLandmarkDatasetIds)
         .map((datasetId) =>
           runtimeDatasets.find((dataset) => dataset.id === datasetId)
         )
         .filter((dataset): dataset is NonNullable<typeof dataset> =>
           Boolean(dataset)
         );
+      if (configuredDatasets.length > 0) {
+        return configuredDatasets;
+      }
+      logGlobeClickDebug(
+        'configured landmark datasets missing in runtime, fallback to local dataset',
+        {
+          configuredLandmarkDatasetIds: Array.from(configuredLandmarkDatasetIds),
+          runtimeDatasetIds: runtimeDatasets.map((dataset) => dataset.id),
+        }
+      );
     }
 
     return fallbackFaultDataset ? [fallbackFaultDataset] : [];
@@ -2851,6 +2868,16 @@ export default function App() {
       })
       .filter((item): item is AlarmLandmarkPoint => item !== null);
   }, [alarmSourceDatasets]);
+  const ledgerEvents = useMemo(() => {
+    const filtered = alarmLandmarks.filter((item) =>
+      LEDGER_VISIBLE_STATUSES.has(item.status)
+    );
+    return filtered.length > 0 ? filtered : alarmLandmarks;
+  }, [alarmLandmarks]);
+  const scrollingLedgerEvents = useMemo(
+    () => (ledgerEvents.length > 1 ? [...ledgerEvents, ...ledgerEvents] : ledgerEvents),
+    [ledgerEvents]
+  );
 
   // const [targetLonLat, setTargetLonLat] = useState<{lon: number, lat: number}>({ lon: 40, lat: 25 });
   const [viewState2D, setViewState2D] = useState({
@@ -2874,13 +2901,11 @@ export default function App() {
     'hidden'
   );
   const [now, setNow] = useState(() => new Date());
-  const ledgerViewportRef = useRef<HTMLDivElement | null>(null);
-  const ledgerResumeTimerRef = useRef<number | null>(null);
   const [visibleLedgerNumber, setVisibleLedgerNumber] = useState('');
-  const ledgerItemRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const [isLedgerScrollPaused, setIsLedgerScrollPaused] = useState(false);
   const manualPlaybackRequestIdRef = useRef(0);
   const lastHandledManualPlaybackRequestIdRef = useRef(0);
-  const [centerLedgerIndex, setCenterLedgerIndex] = useState(0);
+  const autoCycleResumeTimerRef = useRef<number | null>(null);
   const requestManualPlayback = useCallback((index: number) => {
     manualPlaybackRequestIdRef.current += 1;
     setManualPlaybackRequest({
@@ -2888,8 +2913,62 @@ export default function App() {
       index,
     });
   }, []);
+  const scheduleAutoCycleResume = useCallback(
+    (targetIndex: number) => {
+      if (autoCycleResumeTimerRef.current !== null) {
+        window.clearTimeout(autoCycleResumeTimerRef.current);
+      }
+      autoCycleResumeTimerRef.current = window.setTimeout(() => {
+        setCycleStartIndex(
+          (targetIndex + 1) % Math.max(1, alarmLandmarks.length)
+        );
+        setIsAutoCycleEnabled(true);
+        setIsLedgerScrollPaused(false);
+        autoCycleResumeTimerRef.current = null;
+      }, MANUAL_PLAYBACK_RESUME_DELAY_MS);
+    },
+    [alarmLandmarks.length]
+  );
+  const triggerManualPlayback = useCallback(
+    (targetIndex: number, source: 'globe' | 'ledger') => {
+      if (targetIndex < 0 || targetIndex >= alarmLandmarks.length) {
+        return;
+      }
+
+      logGlobeClickDebug('manual playback trigger', {
+        source,
+        targetIndex,
+        landmarksCount: alarmLandmarks.length,
+      });
+      setCurrentStory('ALARM_EVENT');
+      setIsAutoCycleEnabled(false);
+      setCycleStartIndex(targetIndex);
+      setVisibleLedgerNumber('');
+      setIsLedgerScrollPaused(true);
+      requestManualPlayback(targetIndex);
+      scheduleAutoCycleResume(targetIndex);
+    },
+    [alarmLandmarks.length, requestManualPlayback, scheduleAutoCycleResume]
+  );
+  const handleLedgerItemClick = useCallback(
+    (pointNumber: string) => {
+      const targetIndex = alarmLandmarks.findIndex(
+        (item) => item.number === pointNumber
+      );
+      if (targetIndex < 0) {
+        return;
+      }
+      triggerManualPlayback(targetIndex, 'ledger');
+    },
+    [alarmLandmarks, triggerManualPlayback]
+  );
   const config = STORY_CONFIG[currentStory];
   const enableRight3DMapWidget = false;
+  const ledgerScrollDistance =
+    ledgerEvents.length * (LEDGER_CARD_HEIGHT + LEDGER_CARD_GAP);
+  const ledgerScrollDurationMs =
+    Math.max(1, ledgerEvents.length) *
+    (POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS + LANDMARK_PLAY_HOLD_MS);
   const activeLandmark = alarmLandmarks[activeLandmarkIndex] ?? null;
   const activeAlertTemplate =
     ALERT_SEQUENCE[activeLandmark?.severity === 'P2' ? 1 : 0] ??
@@ -3024,6 +3103,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (autoCycleResumeTimerRef.current !== null) {
+        window.clearTimeout(autoCycleResumeTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
@@ -3063,6 +3150,19 @@ export default function App() {
     setActiveLandmarkIndex((prev) => prev % alarmLandmarks.length);
     setCycleStartIndex((prev) => prev % alarmLandmarks.length);
   }, [alarmLandmarks.length]);
+
+  useEffect(() => {
+    if (alertPopupPhase !== 'visible' || !activeLandmark?.number) {
+      setVisibleLedgerNumber('');
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setVisibleLedgerNumber(activeLandmark.number);
+    }, LEDGER_HIGHLIGHT_SYNC_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [activeLandmark?.number, alertPopupPhase]);
 
   useEffect(() => {
     const handleWidgetEvent = (event: MessageEvent) => {
@@ -3153,18 +3253,14 @@ export default function App() {
         clickedNumber,
         clickedRefId,
       });
-
-      setCurrentStory('ALARM_EVENT');
-      setIsAutoCycleEnabled(false);
-      setCycleStartIndex(targetIndex);
-      requestManualPlayback(targetIndex);
+      triggerManualPlayback(targetIndex, 'globe');
     };
 
     window.addEventListener('message', handleWidgetEvent);
     return () => {
       window.removeEventListener('message', handleWidgetEvent);
     };
-  }, [alarmLandmarks, requestManualPlayback]);
+  }, [alarmLandmarks, triggerManualPlayback]);
 
   useEffect(() => {
     if (currentStory !== 'ALARM_EVENT') {
@@ -3444,6 +3540,7 @@ export default function App() {
       });
 
       setActiveLandmarkIndex(index);
+      setVisibleLedgerNumber('');
       setAlertPopupPhase('hidden');
       postGlobeUpdate(buildPlaybackWidget(point, false));
 
@@ -3512,49 +3609,6 @@ export default function App() {
     isAutoCycleEnabled,
     manualPlaybackRequest,
   ]);
-
-  useEffect(() => {
-    if (currentStory !== 'ALARM_EVENT') return;
-
-    let rafId = 0;
-    let prevCenterIdx = -1;
-
-    const updateCenterHighlight = () => {
-      const viewport = ledgerViewportRef.current;
-      if (!viewport) {
-        rafId = window.requestAnimationFrame(updateCenterHighlight);
-        return;
-      }
-
-      const viewportRect = viewport.getBoundingClientRect();
-      const viewportCenterY = viewportRect.top + viewportRect.height / 2;
-      let closestIdx = -1;
-      let closestDistance = Number.POSITIVE_INFINITY;
-
-      ledgerItemRefs.current.forEach((item, idx) => {
-        if (!item) return;
-        const rect = item.getBoundingClientRect();
-        if (rect.bottom <= viewportRect.top || rect.top >= viewportRect.bottom)
-          return;
-        const itemCenterY = rect.top + rect.height / 2;
-        const distance = Math.abs(itemCenterY - viewportCenterY);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestIdx = idx;
-        }
-      });
-
-      if (closestIdx >= 0 && closestIdx !== prevCenterIdx) {
-        prevCenterIdx = closestIdx;
-        setCenterLedgerIndex(closestIdx);
-      }
-
-      rafId = window.requestAnimationFrame(updateCenterHighlight);
-    };
-
-    rafId = window.requestAnimationFrame(updateCenterHighlight);
-    return () => window.cancelAnimationFrame(rafId);
-  }, [currentStory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -5029,118 +5083,152 @@ export default function App() {
                   {renderRightCardShell(
                     'Event Ledger',
                     <div
-                      ref={ledgerViewportRef}
                       className="relative h-full w-full overflow-hidden event-ledger-marquee"
                     >
-                      <div className="flex flex-col gap-[14px] pr-[8px] animate-ledger-scroll">
-                        {[...MOCK_TICKETS, ...MOCK_TICKETS].map((t, idx) => {
-                          const accent =
-                            t.severity === 'CRITICAL'
-                              ? '#FF375E'
-                              : t.severity === 'WARNING'
-                              ? '#FF5F1D'
-                              : '#8E9AA0';
-                          const statusColor =
-                            LEDGER_STATUS_COLORS[t.status] ?? '#8E9AA0';
-                          const isHighlighted = idx === centerLedgerIndex;
-                          return (
-                            <div
-                              key={`${t.id}-${idx}`}
-                              ref={(el) => {
-                                ledgerItemRefs.current[idx] = el;
-                              }}
-                              className="relative grid items-center shrink-0 px-[32px] py-[40px] min-h-[240px]"
-                              style={{
-                                gridTemplateColumns: '3px 1fr auto',
-                                columnGap: 32,
-                                background: isHighlighted
-                                  ? `linear-gradient(90deg, ${accent}2E 0%, rgba(36,22,72,0.72) 55%, rgba(20,12,40,0.5) 100%)`
-                                  : `linear-gradient(90deg, ${accent}1A 0%, rgba(20,12,40,0.45) 55%, rgba(20,12,40,0.25) 100%)`,
-                                border: isHighlighted
-                                  ? `1px solid ${accent}8C`
-                                  : `1px solid ${accent}26`,
-                                boxShadow: isHighlighted
-                                  ? `inset 0 0 0 1px ${withAlpha(
-                                      accent,
-                                      0.35
-                                    )}, 0 0 22px ${withAlpha(accent, 0.35)}`
-                                  : `inset 0 0 0 1px transparent, 0 0 0 transparent`,
-                                letterSpacing: 0,
-                                animation: isHighlighted
-                                  ? 'ledgerCardBreath 2.4s ease-in-out infinite'
-                                  : 'none',
-                              }}
-                            >
-                              {/* Severity rail */}
+                      {scrollingLedgerEvents.length > 0 ? (
+                        <div
+                          className="flex flex-col gap-[14px] pr-[8px] event-ledger-scroll-track"
+                          style={{
+                            ['--ledger-scroll-distance' as any]: `${ledgerScrollDistance}px`,
+                            animationDuration: `${ledgerScrollDurationMs}ms`,
+                            animationPlayState: isLedgerScrollPaused
+                              ? 'paused'
+                              : 'running',
+                            animationName:
+                              ledgerEvents.length > 1
+                                ? 'eventLedgerAutoScroll'
+                                : 'none',
+                          }}
+                        >
+                          {scrollingLedgerEvents.map((t, idx) => {
+                            const accent =
+                              t.severity === 'P1'
+                                ? '#FF375E'
+                                : t.severity === 'P2'
+                                ? '#3B82F6'
+                                : '#8E9AA0';
+                            const statusColor =
+                              LEDGER_STATUS_COLORS[t.status] ?? '#8E9AA0';
+                            const isHighlighted =
+                              t.number === visibleLedgerNumber;
+                            return (
                               <div
-                                className="self-stretch"
-                                style={{
-                                  background: accent,
-                                  boxShadow: isHighlighted
-                                    ? `0 0 20px ${accent}`
-                                    : `0 0 14px ${accent}`,
+                                key={`${t.number}-${idx}`}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => handleLedgerItemClick(t.number)}
+                                onKeyDown={(event) => {
+                                  if (
+                                    event.key === 'Enter' ||
+                                    event.key === ' '
+                                  ) {
+                                    event.preventDefault();
+                                    handleLedgerItemClick(t.number);
+                                  }
                                 }}
-                              />
-
-                              {/* Content (stacked: meta + subject) */}
-                              <div className="flex flex-col justify-center gap-[30px] min-w-0">
-                                {/* Meta row: ID · Location */}
-                                <div className="flex items-center gap-[20px] font-art-mono text-[20px] uppercase min-w-0">
-                                  <span className="text-white shrink-0">
-                                    {t.id}
-                                  </span>
-                                  <span
-                                    className="h-[20px] w-px shrink-0"
-                                    style={{
-                                      background: 'rgba(255,255,255,0.18)',
-                                    }}
-                                  />
-                                  <span className="inline-flex items-center gap-[8px] text-[#8E9AA0] min-w-0">
-                                    <MapPin
-                                      size={22}
-                                      weight="fill"
-                                      className="shrink-0"
-                                      style={{ color: '#8E9AA0' }}
-                                    />
-                                    <span className="truncate">
-                                      {t.location}
-                                    </span>
-                                  </span>
-                                </div>
-
-                                {/* Subject (full sentence, may wrap) */}
-                                <div className="font-art-sans text-[34px] font-light text-white leading-[1.3]">
-                                  {t.subject}
-                                </div>
-                              </div>
-
-                              {/* Status pill — vertically centered */}
-                              <div
-                                className="inline-flex items-center gap-[10px] shrink-0 self-center font-art-mono text-[16px] uppercase rounded-full px-[20px] py-[10px]"
+                                className="relative grid items-center shrink-0 px-[32px] py-[40px] min-h-[240px] cursor-pointer outline-none"
                                 style={{
-                                  backgroundColor: `${statusColor}1F`,
+                                  gridTemplateColumns: '3px 1fr auto',
+                                  columnGap: 32,
+                                  background: isHighlighted
+                                    ? `linear-gradient(90deg, ${accent}2E 0%, rgba(36,22,72,0.72) 55%, rgba(20,12,40,0.5) 100%)`
+                                    : `linear-gradient(90deg, ${accent}1A 0%, rgba(20,12,40,0.45) 55%, rgba(20,12,40,0.25) 100%)`,
                                   border: isHighlighted
-                                    ? `1px solid ${statusColor}AA`
-                                    : `1px solid ${statusColor}66`,
-                                  color: statusColor,
+                                    ? `1px solid ${accent}8C`
+                                    : `1px solid ${accent}26`,
                                   boxShadow: isHighlighted
-                                    ? `0 0 14px ${withAlpha(statusColor, 0.45)}`
+                                    ? `inset 0 0 0 1px ${withAlpha(
+                                        accent,
+                                        0.35
+                                      )}, 0 0 22px ${withAlpha(accent, 0.35)}`
+                                    : `inset 0 0 0 1px transparent, 0 0 0 transparent`,
+                                  letterSpacing: 0,
+                                  animation: isHighlighted
+                                    ? 'ledgerCardBreath 2.4s ease-in-out infinite'
                                     : 'none',
                                 }}
                               >
-                                <span
-                                  className="w-[8px] h-[8px] rounded-full"
+                                {/* Severity rail */}
+                                <div
+                                  className="self-stretch"
                                   style={{
-                                    background: statusColor,
-                                    boxShadow: `0 0 10px ${statusColor}`,
+                                    background: accent,
+                                    boxShadow: isHighlighted
+                                      ? `0 0 20px ${accent}`
+                                      : `0 0 14px ${accent}`,
                                   }}
                                 />
-                                <span>{t.status}</span>
+
+                                {/* Content (stacked: meta + subject) */}
+                                <div className="flex flex-col justify-center gap-[30px] min-w-0">
+                                  {/* Meta row: ID · Location */}
+                                  <div className="flex items-center gap-[20px] font-art-mono text-[20px] uppercase min-w-0">
+                                    <span className="text-white shrink-0">
+                                      {t.number}
+                                    </span>
+                                    <span
+                                      className="h-[20px] w-px shrink-0"
+                                      style={{
+                                        background: 'rgba(255,255,255,0.18)',
+                                      }}
+                                    />
+                                    <span className="inline-flex items-center gap-[8px] text-[#8E9AA0] min-w-0">
+                                      <MapPin
+                                        size={22}
+                                        weight="fill"
+                                        className="shrink-0"
+                                        style={{ color: '#8E9AA0' }}
+                                      />
+                                      <span className="truncate">
+                                        {t.faultArea ||
+                                          t.cableName ||
+                                          t.network ||
+                                          '--'}
+                                      </span>
+                                    </span>
+                                  </div>
+
+                                  {/* Subject (full sentence, may wrap) */}
+                                  <div className="font-art-sans text-[34px] font-light text-white leading-[1.3]">
+                                    {t.rootCause || t.refId || '--'}
+                                  </div>
+                                </div>
+
+                                {/* Status pill — vertically centered */}
+                                <div
+                                  className="inline-flex items-center gap-[10px] shrink-0 self-center font-art-mono text-[16px] uppercase rounded-full px-[20px] py-[10px]"
+                                  style={{
+                                    backgroundColor: `${statusColor}1F`,
+                                    border: isHighlighted
+                                      ? `1px solid ${statusColor}AA`
+                                      : `1px solid ${statusColor}66`,
+                                    color: statusColor,
+                                    boxShadow: isHighlighted
+                                      ? `0 0 14px ${withAlpha(
+                                          statusColor,
+                                          0.45
+                                        )}`
+                                      : 'none',
+                                  }}
+                                >
+                                  <span
+                                    className="w-[8px] h-[8px] rounded-full"
+                                    style={{
+                                      background: statusColor,
+                                      boxShadow: `0 0 10px ${statusColor}`,
+                                    }}
+                                  />
+                                  <span>{t.status || '--'}</span>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-[24px] text-[#8E9AA0] uppercase tracking-[0.08em]">
+                          No Event Data
+                        </div>
+                      )}
                     </div>,
                     'h-full'
                   )}
@@ -5203,6 +5291,25 @@ export default function App() {
         </div>
 
         <style>{`
+          .event-ledger-scroll-track {
+            animation-timing-function: linear;
+            animation-iteration-count: infinite;
+            animation-fill-mode: both;
+            will-change: transform;
+            transform: translate3d(0, 0, 0);
+          }
+          @keyframes eventLedgerAutoScroll {
+            0% {
+              transform: translate3d(0, 0, 0);
+            }
+            100% {
+              transform: translate3d(
+                0,
+                calc(var(--ledger-scroll-distance, 0px) * -1),
+                0
+              );
+            }
+          }
           .alert-side-stripe-flow {
             background-image: repeating-linear-gradient(
               var(--stripe-angle, -34deg),

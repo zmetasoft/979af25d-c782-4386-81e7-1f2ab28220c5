@@ -15,7 +15,7 @@
           "viewLat": 24,
           "radius": 2400
         },
-        "cameraAnimationEnabled": false,
+        "cameraAnimationEnabled": true,
         "styleConfig": {
           "effects": {
             "environmentMap": {
