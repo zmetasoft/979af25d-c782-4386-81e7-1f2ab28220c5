@@ -172,7 +172,7 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
         opacity: 0.2,
         effectPreset: 'stripe-flow',
         flowSpeed: 30,
-        flowDensity: 5000,
+        flowDensity: 3000,
         flowAngle: 45,
       },
       match: {
