@@ -165,7 +165,7 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
         opacity: 0.2,
         effectPreset: 'stripe-flow',
         flowSpeed: 50,
-        flowDensity: 4000,
+        flowDensity: 5000,
         flowAngle: 45,
       },
       match: {
@@ -4276,6 +4276,7 @@ export default function App() {
                 'linear-gradient(to right, transparent 0%, black 12%, black 82%, transparent 100%)',
               WebkitMaskImage:
                 '-webkit-linear-gradient(left, transparent 0%, black 12%, black 82%, transparent 100%)',
+              filter: 'saturate(1.46) contrast(1.8) brightness(0.78) hue-rotate(24deg)',
             }}
           >
             <WidgetHost
@@ -4286,6 +4287,30 @@ export default function App() {
                 width: '100%',
                 height: '100%',
                 transformOrigin: 'top left',
+              }}
+            />
+            <div
+              className="absolute inset-0 z-[2] pointer-events-none"
+              style={{
+                background:
+                  'radial-gradient(circle at 48% 48%, rgba(190,112,255,0.34) 0%, rgba(140,70,230,0.24) 42%, rgba(64,38,160,0.42) 100%)',
+                mixBlendMode: 'color',
+              }}
+            />
+            <div
+              className="absolute inset-0 z-[3] pointer-events-none"
+              style={{
+                background:
+                  'radial-gradient(circle at 50% 44%, rgba(226,185,255,0.22) 0%, rgba(165,78,225,0.14) 34%, rgba(5,5,15,0) 72%)',
+                mixBlendMode: 'screen',
+              }}
+            />
+            <div
+              className="absolute inset-0 z-[4] pointer-events-none"
+              style={{
+                background:
+                  'radial-gradient(circle at 46% 42%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.08) 48%, rgba(0,0,0,0.42) 100%)',
+                mixBlendMode: 'multiply',
               }}
             />
           </div>
@@ -4329,6 +4354,7 @@ export default function App() {
                 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%)',
               WebkitMaskImage:
                 '-webkit-linear-gradient(left, transparent 0%, black 12%, black 88%, transparent 100%)',
+              filter: 'saturate(1.25) contrast(1.12) brightness(0.92) hue-rotate(18deg)',
             }}
           >
             <WidgetHost
@@ -4339,6 +4365,22 @@ export default function App() {
                 width: '100%',
                 height: '100%',
                 transformOrigin: 'top left',
+              }}
+            />
+            <div
+              className="absolute inset-0 z-[2] pointer-events-none"
+              style={{
+                background:
+                  'linear-gradient(90deg, rgba(96,48,180,0.28) 0%, rgba(165,78,225,0.24) 48%, rgba(92,64,210,0.34) 100%)',
+                mixBlendMode: 'color',
+              }}
+            />
+            <div
+              className="absolute inset-0 z-[3] pointer-events-none"
+              style={{
+                background:
+                  'radial-gradient(ellipse at 50% 50%, rgba(178,104,255,0.16) 0%, rgba(120,60,220,0.08) 46%, rgba(5,5,15,0) 78%)',
+                mixBlendMode: 'screen',
               }}
             />
           </div>
