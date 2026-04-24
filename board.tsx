@@ -74,12 +74,14 @@ const alertPopupBgOrange = './assets/alert-popup-bg-orange.svg';
 const center3Logo = './assets/center3logo.svg';
 const AI_BOARD_VISDOC_ID = '979af25d-c782-4386-81e7-1f2ab28220c5';
 const AI_BOARD_WIDGET_UPDATE_EVENT = 'zmeta-ai-board-widget:update';
-const ALERT_POPUP_TRANSITION_MS = 800;
+const ALERT_POPUP_TRANSITION_MS = 560;
 const ALERT_CAMERA_PULL_BACK_MS = 1800;
 const ALERT_CAMERA_PUSH_IN_MS = 2600;
+const RIGHT_MAP_ALERT_FOCUS_MS = 3000;
+const ALERT_POPUP_LAG_MS = 220;
 const ALERT_ROTATION_INTERVAL_MS = 9000;
 const ALERT_POPUP_REVEAL_DELAY_MS =
-  ALERT_CAMERA_PULL_BACK_MS - ALERT_POPUP_TRANSITION_MS;
+  RIGHT_MAP_ALERT_FOCUS_MS + ALERT_POPUP_LAG_MS;
 const MIDDLE_EAST_3D_MAP_CAMERA_VIEW = {
   center: { lon: 49.765794, lat: 9.467088 },
   cameraDistance: 1404.8,
@@ -432,7 +434,6 @@ const LEDGER_CLICK_PAUSE_MS = 5000;
 const LEDGER_CARD_HEIGHT = 240;
 const LEDGER_CARD_GAP = 14;
 const LEDGER_INITIAL_HIGHLIGHT_TOP = 392;
-const ALERT_CARD_CLICK_REVEAL_DELAY_MS = 80;
 
 type AlertSequenceItem = {
   ticketId: string;
@@ -633,13 +634,17 @@ type AlarmLandmarkPoint = {
 };
 
 const GLOBE_WIDGET_ID = 'middle-east-globe';
-const GLOBE_CAMERA_NEAR_RADIUS = 1300;
-const GLOBE_CAMERA_FAR_RADIUS = 3100;
-const GLOBE_CAMERA_ZOOM_OUT_MS = 700;
-const GLOBE_CAMERA_MOVE_MS = 1800;
-const GLOBE_CAMERA_ZOOM_IN_MS = 900;
-const GLOBE_TRANSITION_TOTAL_MS =
-  GLOBE_CAMERA_ZOOM_OUT_MS + GLOBE_CAMERA_MOVE_MS + GLOBE_CAMERA_ZOOM_IN_MS;
+const GLOBE_CAMERA_NEAR_RADIUS = 850;
+const GLOBE_CAMERA_FAR_RADIUS = 1200;
+const GLOBE_GLOBAL_CAMERA_RADIUS = 1400;
+const GLOBE_PAGE_TRANSITION_MS = 1800;
+const GLOBE_CAMERA_ZOOM_OUT_MS = 600;
+const GLOBE_CAMERA_MOVE_MS = 1600;
+const GLOBE_TRANSITION_TOTAL_MS = RIGHT_MAP_ALERT_FOCUS_MS;
+const GLOBE_CAMERA_ZOOM_IN_MS =
+  GLOBE_TRANSITION_TOTAL_MS -
+  GLOBE_CAMERA_ZOOM_OUT_MS -
+  GLOBE_CAMERA_MOVE_MS;
 const LANDMARK_PLAY_HOLD_MS = 2200;
 const POPUP_HIDE_LEAD_MS = 260;
 const MANUAL_PLAYBACK_RESUME_DELAY_MS =
@@ -3183,6 +3188,60 @@ export default function App() {
   }, [activeLandmark?.number, alertPopupPhase, isAutoCycleEnabled]);
 
   useEffect(() => {
+    if (!globeWidgetTemplate || currentStory === 'ALARM_EVENT') {
+      return;
+    }
+
+    const targetByStory: Record<Exclude<StoryMode, 'ALARM_EVENT'>, {
+      viewLon: number;
+      viewLat: number;
+      radius: number;
+    }> = {
+      GLOBAL: { viewLon: 42, viewLat: 24, radius: GLOBE_GLOBAL_CAMERA_RADIUS },
+      CABLE_FOCUS: { viewLon: 35, viewLat: 25, radius: GLOBE_GLOBAL_CAMERA_RADIUS },
+      DC_FOCUS: { viewLon: 46.884, viewLat: 24.829, radius: GLOBE_GLOBAL_CAMERA_RADIUS },
+    };
+
+    const target = targetByStory[currentStory];
+    const widget = deepClone(globeWidgetTemplate) as Record<string, any>;
+    const currentConfig =
+      (widget.config as Record<string, unknown> | undefined) ?? {};
+
+    widget.config = {
+      ...currentConfig,
+      cameraAnimationEnabled: currentStory === 'GLOBAL',
+      cameraConfig: {
+        ...((currentConfig.cameraConfig as Record<string, unknown>) ?? {}),
+        ...target,
+      },
+      cameraTransition: {
+        enabled: true,
+        steps: [
+          {
+            type: 'tweenCamera',
+            to: '@final',
+            durationMs: GLOBE_PAGE_TRANSITION_MS,
+          },
+        ],
+      },
+    };
+
+    const visdocId = resolveCurrentVisdocId();
+    if (!visdocId) {
+      return;
+    }
+
+    window.postMessage(
+      {
+        type: AI_BOARD_WIDGET_UPDATE_EVENT,
+        visdocId,
+        widget,
+      },
+      window.location.origin
+    );
+  }, [currentStory, globeWidgetTemplate]);
+
+  useEffect(() => {
     const handleWidgetEvent = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) {
         return;
@@ -3577,9 +3636,7 @@ export default function App() {
           return;
         }
         setAlertPopupPhase('visible');
-      }, options.source === 'click'
-        ? ALERT_CARD_CLICK_REVEAL_DELAY_MS
-        : POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS);
+      }, ALERT_POPUP_REVEAL_DELAY_MS);
       timers.add(revealTimer);
 
       if (options.allowLoop) {
@@ -4078,7 +4135,7 @@ export default function App() {
           center: [activeAlert.lon, activeAlert.lat],
           zoom: 3.8,
           pitch: 35,
-          duration: 3200,
+          duration: RIGHT_MAP_ALERT_FOCUS_MS,
           curve: 1.6,
           speed: 1.1,
           essential: true,
@@ -4090,7 +4147,7 @@ export default function App() {
           latitude: activeAlert.lat,
           zoom: 3.8,
           pitch: 35,
-          transitionDuration: 3000,
+          transitionDuration: RIGHT_MAP_ALERT_FOCUS_MS,
         }));
       }
     } else {
@@ -4540,7 +4597,7 @@ export default function App() {
           style={{ transform: 'translate(-50%, -50%)' }}
         >
           <div
-            className={`relative w-[1020px] h-[960px] transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] origin-[0%_50%] ${
+            className={`relative w-[1020px] h-[960px] transition-all duration-[560ms] ease-[cubic-bezier(0.16,1,0.3,1)] origin-[0%_50%] ${
               alertPopupPhase === 'hidden'
                 ? 'opacity-0 scale-[0.02] -translate-x-[1000px] blur-[12px]'
                 : 'opacity-100 scale-100 translate-x-0 blur-0'
@@ -4998,8 +5055,8 @@ export default function App() {
 
         {/* --- MAP LEGEND (Global view only) --- */}
         {currentStory === 'GLOBAL' && (
-          <div className="absolute bottom-[40px] left-1/2 -translate-x-1/2 z-[35] pointer-events-none">
-            <div className="relative w-[680px]">
+          <div className="absolute bottom-[40px] left-[3664px] -translate-x-1/2 z-[35] pointer-events-none">
+            <div className="relative w-[600px]">
               {/* Nine-slice legend background */}
               <div
                 className="absolute inset-0 pointer-events-none"
@@ -5012,35 +5069,71 @@ export default function App() {
                 }}
               />
 
-              <div className="relative px-[28px] py-[28px]">
+              <div className="relative px-[58px] py-[34px]">
                 <div className="flex flex-col gap-[22px]">
-                  <div className="flex items-center gap-[16px]">
-                    <div className="w-[36px] h-[2px] bg-white shrink-0" />
-                    <span className="text-[18px] uppercase tracking-normal text-white/85">
+                  <div className="grid grid-cols-[56px_1fr] items-center gap-x-[34px]">
+                    <div className="w-[54px] h-[3px] bg-white shrink-0 justify-self-center" />
+                    <span className="text-[18px] uppercase tracking-normal text-white/85 text-right">
                       Submarine Networks
                     </span>
                   </div>
-                  <div className="flex items-center gap-[16px]">
-                    <div className="w-[36px] flex justify-center shrink-0">
+                  <div className="grid grid-cols-[56px_1fr] items-center gap-x-[34px]">
+                    <div className="w-[56px] flex justify-center shrink-0 justify-self-center">
                       <div className="w-[10px] h-[10px] rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
                     </div>
-                    <span className="text-[18px] uppercase tracking-normal text-white/85">
+                    <span className="text-[18px] uppercase tracking-normal text-white/85 text-right">
                       PoP Locations
                     </span>
                   </div>
-                  <div className="flex items-center gap-[16px]">
-                    <div className="w-[36px] flex justify-center shrink-0">
-                      <div className="w-[14px] h-[14px] rotate-45 border-[2px] border-[#A54EE1] bg-[rgba(165,78,225,0.25)] shadow-[0_0_10px_#A54EE1]" />
+                  <div className="grid grid-cols-[56px_1fr] items-center gap-x-[34px]">
+                    <div className="w-[56px] flex justify-center shrink-0 justify-self-center">
+                      <svg
+                        className="w-[24px] h-[24px] text-[#7C87FC] drop-shadow-[0_0_9px_rgba(124,135,252,0.9)]"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 256 256"
+                        aria-hidden="true"
+                      >
+                        <rect width="256" height="256" fill="none" />
+                        <path
+                          d="M128,24C74.17,24,32,48.6,32,80v96c0,31.4,42.17,56,96,56s96-24.6,96-56V80C224,48.6,181.83,24,128,24Zm80,104c0,9.62-7.88,19.43-21.61,26.92C170.93,163.35,150.19,168,128,168s-42.93-4.65-58.39-13.08C55.88,147.43,48,137.62,48,128V111.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64Zm-21.61,74.92C170.93,211.35,150.19,216,128,216s-42.93-4.65-58.39-13.08C55.88,195.43,48,185.62,48,176V159.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64V176C208,185.62,200.12,195.43,186.39,202.92Z"
+                          fill="currentColor"
+                        />
+                      </svg>
                     </div>
-                    <span className="text-[18px] uppercase tracking-normal text-white/85">
+                    <span className="text-[18px] uppercase tracking-normal text-white/85 text-right">
                       Data Centers
                     </span>
                   </div>
-                  <div className="flex items-center gap-[16px]">
-                    <div className="w-[36px] flex justify-center shrink-0">
-                      <div className="w-[22px] h-[14px] border border-[rgba(165,78,225,0.7)] bg-[rgba(165,78,225,0.15)]" />
+                  <div className="grid grid-cols-[56px_1fr] items-center gap-x-[34px]">
+                    <div className="w-[56px] flex justify-center shrink-0 justify-self-center">
+                      <svg
+                        className="w-[24px] h-[24px] text-[#FF4D6D] drop-shadow-[0_0_9px_rgba(255,77,109,0.9)]"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 256 256"
+                        aria-hidden="true"
+                      >
+                        <rect width="256" height="256" fill="none" />
+                        <path
+                          d="M124,175a8,8,0,0,0,7.94,0c2.45-1.41,60-35,60-94.95A64,64,0,0,0,64,80C64,140,121.58,173.54,124,175ZM128,56a24,24,0,1,1-24,24A24,24,0,0,1,128,56ZM240,184c0,31.18-57.71,48-112,48S16,215.18,16,184c0-14.59,13.22-27.51,37.23-36.37a8,8,0,0,1,5.54,15C42.26,168.74,32,176.92,32,184c0,13.36,36.52,32,96,32s96-18.64,96-32c0-7.08-10.26-15.26-26.77-21.36a8,8,0,0,1,5.54-15C226.78,156.49,240,169.41,240,184Z"
+                          fill="currentColor"
+                        />
+                      </svg>
                     </div>
-                    <span className="text-[18px] uppercase tracking-normal text-white/85">
+                    <span className="text-[18px] uppercase tracking-normal text-white/85 text-right">
+                      Alert Points
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[56px_1fr] items-center gap-x-[34px]">
+                    <div className="w-[56px] flex justify-center shrink-0 justify-self-center">
+                      <div
+                        className="w-[22px] h-[22px] border border-[rgba(165,78,225,0.78)] shadow-[0_0_9px_rgba(165,78,225,0.45)]"
+                        style={{
+                          background:
+                            'repeating-linear-gradient(135deg, rgba(165,78,225,0.42) 0 2px, rgba(165,78,225,0.08) 2px 6px)',
+                        }}
+                      />
+                    </div>
+                    <span className="text-[18px] uppercase tracking-normal text-white/85 text-right">
                       Countries Covered
                     </span>
                   </div>

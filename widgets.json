@@ -13,7 +13,7 @@
         "cameraConfig": {
           "viewLon": 42,
           "viewLat": 24,
-          "radius": 2400
+          "radius": 1400
         },
         "cameraAnimationEnabled": true,
         "styleConfig": {
@@ -169,7 +169,7 @@
             "layerType": "landmark",
             "layerName": "故障点位（P2）",
             "enabled": true,
-            "iconId": "蓝色标点",
+            "iconId": "橘色标点",
             "categoryField": "Severity",
             "categoryValue": "P2",
             "labelCard": {
@@ -233,19 +233,19 @@
           "datasetId": "1941c631-34fd-42f4-bec7-fbfb25bde290",
           "fields": [
             {
-              "id": "29ebd619-6fe7-4aba-90be-7e221911f3b6",
               "name": "longitude",
-              "type": "number"
+              "type": "number",
+              "id": "29ebd619-6fe7-4aba-90be-7e221911f3b6"
             },
             {
-              "id": "9dfa780d-9434-46fd-9988-29a1e17b4a7e",
               "name": "latitude",
-              "type": "number"
+              "type": "number",
+              "id": "9dfa780d-9434-46fd-9988-29a1e17b4a7e"
             },
             {
-              "id": "af5ad011-b643-4895-9ddb-ea9fec255ce7",
               "name": "cable_name",
-              "type": "string"
+              "type": "string",
+              "id": "af5ad011-b643-4895-9ddb-ea9fec255ce7"
             }
           ],
           "config": {
@@ -285,21 +285,20 @@
             "heightOffset": 0.035
           },
           "filters": [],
-          "sorts": [],
-          "$modelType": "dashboard/DataConfigModel"
+          "sorts": []
         },
         {
           "datasetId": "683dea89-f65d-4ae5-a0df-5c0578ac4afe",
           "fields": [
             {
-              "id": "0700a019-e7db-4f4e-806d-ec30b46bb89a",
               "name": "Longitude",
-              "type": "number"
+              "type": "number",
+              "id": "0700a019-e7db-4f4e-806d-ec30b46bb89a"
             },
             {
-              "id": "81526c16-1fc2-4fd6-99a1-6db82b92ab8f",
               "name": "Latitude",
-              "type": "number"
+              "type": "number",
+              "id": "81526c16-1fc2-4fd6-99a1-6db82b92ab8f"
             }
           ],
           "config": {
@@ -337,16 +336,15 @@
             "heightOffset": 0.03
           },
           "filters": [],
-          "sorts": [],
-          "$modelType": "dashboard/DataConfigModel"
+          "sorts": []
         },
         {
           "datasetId": "24f7ad6b-050e-416f-9cd9-4c89b328fa52",
           "fields": [
             {
-              "id": "f04e5f74-bff0-4838-9db3-4c910bc1ae51",
               "name": "region_name",
-              "type": "string"
+              "type": "string",
+              "id": "f04e5f74-bff0-4838-9db3-4c910bc1ae51"
             }
           ],
           "config": {
@@ -373,21 +371,20 @@
             }
           },
           "filters": [],
-          "sorts": [],
-          "$modelType": "dashboard/DataConfigModel"
+          "sorts": []
         },
         {
           "datasetId": "1941c631-34fd-42f4-bec7-fbfb25bde290",
           "fields": [
             {
-              "id": "cae649f5-fdd8-43b8-ae8b-0e273f0cc1e5",
               "name": "longitude",
-              "type": "number"
+              "type": "number",
+              "id": "cae649f5-fdd8-43b8-ae8b-0e273f0cc1e5"
             },
             {
-              "id": "91f2892a-dee1-4848-a4cf-bc51342de1e0",
               "name": "latitude",
-              "type": "number"
+              "type": "number",
+              "id": "91f2892a-dee1-4848-a4cf-bc51342de1e0"
             }
           ],
           "config": {
@@ -419,21 +416,20 @@
             "markerModelId": "custom:小型点位.glb"
           },
           "filters": [],
-          "sorts": [],
-          "$modelType": "dashboard/DataConfigModel"
+          "sorts": []
         },
         {
           "datasetId": "41cb8e07-da93-465a-99d7-571c2cc5412a",
           "fields": [
             {
-              "id": "5744b298-16aa-4900-80a4-1dde99c1df3b",
               "name": "longitude",
-              "type": "number"
+              "type": "number",
+              "id": "5744b298-16aa-4900-80a4-1dde99c1df3b"
             },
             {
-              "id": "dccd6a8b-dcdb-47e6-80ae-9ac7cd7f08de",
               "name": "latitude",
-              "type": "number"
+              "type": "number",
+              "id": "dccd6a8b-dcdb-47e6-80ae-9ac7cd7f08de"
             }
           ],
           "config": {
@@ -465,8 +461,7 @@
             "markerModelId": "custom:数据中心.glb"
           },
           "filters": [],
-          "sorts": [],
-          "$modelType": "dashboard/DataConfigModel"
+          "sorts": []
         }
       ],
       "layout": {
