@@ -176,12 +176,12 @@
         },
         "cameraView": {
           "center": {
-            "lon": 63.865583,
-            "lat": 20.350711
+            "lon": 54.963878,
+            "lat": 18.059414
           },
-          "cameraDistance": 789.26,
-          "bearing": 83.4,
-          "pitch": 52.9
+          "cameraDistance": 1226.8,
+          "bearing": 89.4,
+          "pitch": 17.7
         }
       },
       "dataConfig": [
@@ -224,10 +224,13 @@
               }
             },
             "style": {
-              "color": "#22D3EE",
-              "opacity": 0.3,
+              "color": "#FAFEFF",
+              "opacity": 0.1,
               "thicknessScale": 0.002,
-              "effectPreset": "pulse"
+              "effectPreset": "comet",
+              "flowDirection": "reverse",
+              "flowSpeed": 0.4,
+              "glowIntensity": 20
             }
           },
           "filters": [],
@@ -260,18 +263,26 @@
                 "name": "Latitude"
               }
             },
-            "markerModelId": "custom:警告点位.glb",
+            "markerModelId": "builtin:beacon",
             "size": {
-              "scale": 0.001
+              "scale": 0.05,
+              "randomness": 0.3
             },
             "label": {
               "fields": []
             },
             "animation": {
               "enabled": true,
-              "appearMs": 260,
-              "disappearMs": 220
-            }
+              "appearMs": 1000,
+              "disappearMs": 1000,
+              "clips": [
+                {
+                  "clipName": "报警点位动画",
+                  "enabled": true
+                }
+              ]
+            },
+            "heightOffset": 0.1
           },
           "filters": [],
           "sorts": []
@@ -296,8 +307,12 @@
               }
             },
             "style": {
-              "color": "#4E61B9",
-              "opacity": 0.4
+              "color": "#FFFFFF",
+              "opacity": 0.2,
+              "effectPreset": "stripe-flow",
+              "flowSpeed": 50,
+              "flowDensity": 4000,
+              "flowAngle": 45
             },
             "match": {
               "strategy": "firstMatch",
@@ -324,7 +339,7 @@
           "config": {
             "layerType": "pillar",
             "layerName": "立柱图层",
-            "visible": true,
+            "visible": false,
             "position": {
               "type": "geographic",
               "lonField": {
@@ -335,12 +350,18 @@
               }
             },
             "height": {
-              "minRatio": 0.02,
+              "minRatio": 0.01,
               "scale": 0.3,
-              "radiusScale": 0.01
+              "radiusScale": 0.01,
+              "heightRandomness": 0.5
             },
             "label": {
               "fields": []
+            },
+            "style": {
+              "effectPreset": "gradient",
+              "baseColor": "#000000",
+              "glowIntensity": 1
             }
           },
           "filters": [],

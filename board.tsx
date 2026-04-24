@@ -39,10 +39,10 @@ const ALERT_ROTATION_INTERVAL_MS = 9000;
 const ALERT_POPUP_REVEAL_DELAY_MS =
   ALERT_CAMERA_PULL_BACK_MS - ALERT_POPUP_TRANSITION_MS;
 const MIDDLE_EAST_3D_MAP_CAMERA_VIEW = {
-  center: { lon: 63.865583, lat: 20.350711 },
-  cameraDistance: 789.26,
-  bearing: 83.4,
-  pitch: 52.9,
+  center: { lon: 54.963878, lat: 18.059414 },
+  cameraDistance: 1226.8,
+  bearing: 89.4,
+  pitch: 17.7,
 } as const;
 const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
   {
@@ -66,10 +66,13 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
         groupField: { name: 'cable_name' },
       },
       style: {
-        color: '#22D3EE',
-        opacity: 0.3,
+        color: '#FAFEFF',
+        opacity: 0.1,
         thicknessScale: 0.002,
-        effectPreset: 'pulse',
+        effectPreset: 'comet',
+        flowDirection: 'reverse',
+        flowSpeed: 0.4,
+        glowIntensity: 20,
       },
     },
     filters: [],
@@ -90,14 +93,16 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
         lonField: { name: 'Longitude' },
         latField: { name: 'Latitude' },
       },
-      markerModelId: 'custom:警告点位.glb',
-      size: { scale: 0.001 },
+      markerModelId: 'builtin:beacon',
+      size: { scale: 0.05, randomness: 0.3 },
       label: { fields: [] },
       animation: {
         enabled: true,
-        appearMs: 260,
-        disappearMs: 220,
+        appearMs: 1000,
+        disappearMs: 1000,
+        clips: [{ clipName: '报警点位动画', enabled: true }],
       },
+      heightOffset: 0.1,
     },
     filters: [],
     sorts: [],
@@ -114,8 +119,12 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
         nameField: { name: 'region_name' },
       },
       style: {
-        color: '#4E61B9',
-        opacity: 0.4,
+        color: '#FFFFFF',
+        opacity: 0.2,
+        effectPreset: 'stripe-flow',
+        flowSpeed: 50,
+        flowDensity: 4000,
+        flowAngle: 45,
       },
       match: {
         strategy: 'firstMatch',
@@ -134,18 +143,24 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
     config: {
       layerType: 'pillar',
       layerName: '立柱图层',
-      visible: true,
+      visible: false,
       position: {
         type: 'geographic',
         lonField: { name: 'lon' },
         latField: { name: 'lat' },
       },
       height: {
-        minRatio: 0.02,
+        minRatio: 0.01,
         scale: 0.3,
         radiusScale: 0.01,
+        heightRandomness: 0.5,
       },
       label: { fields: [] },
+      style: {
+        effectPreset: 'gradient',
+        baseColor: '#000000',
+        glowIntensity: 1,
+      },
     },
     filters: [],
     sorts: [],
@@ -2401,8 +2416,6 @@ export default function App() {
 
   const [scale, setScale] = useState(1);
   const [currentStory, setCurrentStory] = useState<StoryMode>('GLOBAL');
-  const [activeAlertIndex, setActiveAlertIndex] = useState(0);
-  const [cameraAlertIndex, setCameraAlertIndex] = useState(0);
   const [alertPopupPhase, setAlertPopupPhase] = useState<'hidden' | 'visible'>('hidden');
   const [now, setNow] = useState(() => new Date());
   const ledgerViewportRef = useRef<HTMLDivElement | null>(null);
@@ -2411,7 +2424,6 @@ export default function App() {
   const [visibleLedgerNumber, setVisibleLedgerNumber] = useState('');
   const [isLedgerScrollPaused, setIsLedgerScrollPaused] = useState(false);
   const config = STORY_CONFIG[currentStory];
-  const cameraAlert = ALERT_SEQUENCE[cameraAlertIndex];
   const enableRight3DMapWidget = false;
   const activeLandmark = alarmLandmarks[activeLandmarkIndex] ?? null;
   const activeLedgerNumber = visibleLedgerNumber;
@@ -2507,7 +2519,6 @@ export default function App() {
   
   const storyRef = useRef(currentStory);
   const activeAlertRef = useRef(activeAlert);
-  const activeAlertIndexRef = useRef(activeAlertIndex);
   useEffect(() => {
     storyRef.current = currentStory;
   }, [currentStory]);
@@ -2515,10 +2526,6 @@ export default function App() {
   useEffect(() => {
     activeAlertRef.current = activeAlert;
   }, [activeAlert]);
-
-  useEffect(() => {
-    activeAlertIndexRef.current = activeAlertIndex;
-  }, [activeAlertIndex]);
 
   useEffect(() => {
     const postWidgetUpdate = (
@@ -2535,18 +2542,29 @@ export default function App() {
     };
 
     if (currentStory !== 'ALARM_EVENT') {
-      postWidgetUpdate();
+      const issuedAt = Date.now();
+      postWidgetUpdate({
+        type: 'fly-to',
+        commandId: `map-reset-${currentStory}-${issuedAt}`,
+        issuedAt,
+        lon: MIDDLE_EAST_3D_MAP_CAMERA_VIEW.center.lon,
+        lat: MIDDLE_EAST_3D_MAP_CAMERA_VIEW.center.lat,
+        bearing: MIDDLE_EAST_3D_MAP_CAMERA_VIEW.bearing,
+        pitch: MIDDLE_EAST_3D_MAP_CAMERA_VIEW.pitch,
+        cameraDistance: MIDDLE_EAST_3D_MAP_CAMERA_VIEW.cameraDistance,
+        durationMs: 1800,
+      });
       return;
     }
 
     const issuedAt = Date.now();
     postWidgetUpdate({
       type: 'fly-to',
-      commandId: `alert-focus-${cameraAlertIndex}-${issuedAt}`,
+      commandId: `alert-focus-${activeAlert.ticketId}-${issuedAt}`,
       issuedAt,
-      lon: cameraAlert.lon,
-      lat: cameraAlert.lat,
-      bearing: 150,
+      lon: activeAlert.lon,
+      lat: activeAlert.lat,
+      bearing: 90,
       pitch: 48,
       pullBackDistance: 500,
       cameraDistance: 200,
@@ -2556,7 +2574,7 @@ export default function App() {
     });
 
     return undefined;
-  }, [currentStory, cameraAlertIndex, cameraAlert.lon, cameraAlert.lat]);
+  }, [currentStory, activeAlert.ticketId, activeAlert.lon, activeAlert.lat]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -2658,7 +2676,10 @@ export default function App() {
       return;
     }
 
-    setCameraAlertIndex(activeAlertIndexRef.current);
+    if (alarmLandmarks.length === 0) {
+      setAlertPopupPhase('hidden');
+      return;
+    }
 
     const initTimer = window.setTimeout(() => {
       setAlertPopupPhase('visible');
@@ -2669,12 +2690,10 @@ export default function App() {
     const interval = window.setInterval(() => {
       setAlertPopupPhase('hidden');
 
-      const nextIndex =
-        (activeAlertIndexRef.current + 1) % ALERT_SEQUENCE.length;
-      setCameraAlertIndex(nextIndex);
+      const nextIndex = (activeLandmarkIndex + 1) % alarmLandmarks.length;
+      setActiveLandmarkIndex(nextIndex);
 
       const revealTimer = window.setTimeout(() => {
-        setActiveAlertIndex(nextIndex);
         setAlertPopupPhase('visible');
       }, ALERT_POPUP_REVEAL_DELAY_MS);
       revealTimers.add(revealTimer);
@@ -2685,7 +2704,7 @@ export default function App() {
       window.clearInterval(interval);
       revealTimers.forEach((timerId) => window.clearTimeout(timerId));
     };
-  }, [currentStory]);
+  }, [currentStory, activeLandmarkIndex, alarmLandmarks.length]);
 
   useEffect(() => {
     let cancelled = false;
