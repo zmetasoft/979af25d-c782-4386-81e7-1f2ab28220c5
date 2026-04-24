@@ -15,7 +15,7 @@
           "viewLat": 24,
           "radius": 2400
         },
-        "cameraAnimationEnabled": true,
+        "cameraAnimationEnabled": false,
         "styleConfig": {
           "effects": {
             "environmentMap": {
@@ -53,6 +53,109 @@
           }
         }
       },
+      "dataConfig": [
+        {
+          "datasetId": "c1aa7cc0-8717-4d24-a4e4-ae8cc5ea3bc1",
+          "fields": [],
+          "config": {
+            "layerType": "connection",
+            "layerName": "海缆连线",
+            "enabled": true,
+            "fields": {
+              "lonField": "longitude",
+              "latField": "latitude"
+            },
+            "path": {
+              "groupField": "cable_name",
+              "orderField": "point_index",
+              "orderDirection": "asc"
+            },
+            "style": {
+              "color": "#FF9A2E",
+              "opacity": 0.95,
+              "thicknessScale": 12
+            }
+          },
+          "filters": [],
+          "sorts": []
+        },
+        {
+          "datasetId": "e0a3cbd4-3446-456b-8898-8f0506ec4f5b",
+          "fields": [],
+          "config": {
+            "layerType": "landmark",
+            "layerName": "故障点位（P1）",
+            "enabled": true,
+            "categoryField": "Severity",
+            "categoryValue": "P1",
+            "fields": {
+              "lonField": "Longitude",
+              "latField": "Latitude",
+              "nameField": "Ref Id",
+              "idField": "Number"
+            },
+            "labelCard": {
+              "mode": "none",
+              "titleField": "Ref Id",
+              "contentField": "Root cause"
+            },
+            "style": {
+              "sizeMode": "world",
+              "worldSize": 56,
+              "screenSizePx": 56,
+              "animationEnabled": false,
+              "animationDurationMs": 1000,
+              "animationLoopGapMs": 0,
+              "presenceAnimation": {
+                "enabled": false,
+                "appearMs": 260,
+                "disappearMs": 220
+              }
+            },
+            "iconId": "红色标点"
+          },
+          "filters": [],
+          "sorts": []
+        },
+        {
+          "datasetId": "e0a3cbd4-3446-456b-8898-8f0506ec4f5b",
+          "fields": [],
+          "config": {
+            "layerType": "landmark",
+            "layerName": "故障点位（P2）",
+            "enabled": true,
+            "categoryField": "Severity",
+            "categoryValue": "P2",
+            "fields": {
+              "lonField": "Longitude",
+              "latField": "Latitude",
+              "nameField": "Ref Id",
+              "idField": "Number"
+            },
+            "labelCard": {
+              "mode": "none",
+              "titleField": "Ref Id",
+              "contentField": "Root cause"
+            },
+            "style": {
+              "sizeMode": "world",
+              "worldSize": 56,
+              "screenSizePx": 56,
+              "animationEnabled": false,
+              "animationDurationMs": 1000,
+              "animationLoopGapMs": 0,
+              "presenceAnimation": {
+                "enabled": false,
+                "appearMs": 260,
+                "disappearMs": 220
+              }
+            },
+            "iconId": "蓝色标点"
+          },
+          "filters": [],
+          "sorts": []
+        }
+      ],
       "layout": {
         "minHeight": 900
       }
