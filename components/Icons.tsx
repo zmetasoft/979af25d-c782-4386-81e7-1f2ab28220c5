@@ -139,6 +139,28 @@ export const StatusPanel: Icon = (p) => (
   </IconBase>
 );
 
+export const DoneCheck: Icon = ({ size = 24, color = 'currentColor', className, style }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 256 256"
+    width={size}
+    height={size}
+    fill="none"
+    className={className}
+    style={style}
+  >
+    <rect width="256" height="256" fill="none" />
+    <polyline
+      points="40 144 96 200 224 72"
+      fill="none"
+      stroke={color}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="24"
+    />
+  </svg>
+);
+
 export const LatencyGauge: Icon = (p) => (
   <IconBase {...p}>
     <rect width="256" height="256" fill="none" />

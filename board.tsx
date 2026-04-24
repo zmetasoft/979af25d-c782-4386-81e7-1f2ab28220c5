@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { WidgetHost } from '@zmeta/ai-board-sdk';
+import { WidgetHost, useDataset } from '@zmeta/ai-board-sdk';
 import * as echarts from 'https://esm.sh/echarts@5.5.1';
 import {
   Engine, Scene, ArcRotateCamera, Vector3, MeshBuilder,
@@ -12,7 +12,7 @@ import MaplibreMap, { type MapHandle } from './components/MaplibreMap';
 import {
   Plus,
   CaretUp, CaretDown, Network, Globe, MapPin, Database, Ruler,
-  Lightning, Ticket, Fire, Warning, RiskWarning, EtrClock, Hourglass, ImpactUsers, StatusPanel, LatencyGauge,
+  Lightning, Ticket, Fire, Warning, EtrClock, Hourglass, ImpactUsers, StatusPanel, DoneCheck,
   type Icon,
 } from './components/Icons';
 
@@ -308,12 +308,17 @@ const MOCK_TICKETS = [
 ];
 
 const LEDGER_STATUS_COLORS: Record<string, string> = {
-  Active: '#FF375E',
-  Pending: '#FF5F1D',
-  Investigating: '#FFC23A',
-  Scheduled: '#8E9AA0',
-  Resolved: '#5FE3A1',
+  'In Progress': '#B441E8',
+  Done: '#5FE3A1',
 };
+
+const LEDGER_VISIBLE_STATUSES = new Set(['In Progress', 'Done']);
+const LEDGER_CARD_HEIGHT = 240;
+const LEDGER_CARD_GAP = 14;
+const ALERT_CARD_ENTER_MS = 800;
+const LEDGER_HIGHLIGHT_SYNC_MS = 300;
+const LEDGER_INITIAL_HIGHLIGHT_TOP = 392;
+const LEDGER_CLICK_PAUSE_MS = 5000;
 
 type AlertSequenceItem = {
   ticketId: string;
@@ -344,6 +349,15 @@ type AlertSequenceItem = {
   country: string;
   network: string;
   routeType: 'Main' | 'Protection';
+  cableName?: string;
+  createdName?: string;
+  createdAt?: string;
+  closedAt?: string;
+  alarmClearedAt?: string;
+  pointIndex?: string;
+  datasetStatus?: string;
+  latitude?: number;
+  longitude?: number;
   // ④ Context Layer
   phenomenon: string;
   advisory: string;
@@ -475,7 +489,97 @@ const ALERT_SEQUENCE: AlertSequenceItem[] = [
   },
 ];
 
-function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritical: boolean) {
+type AlarmLandmarkPoint = {
+  number: string;
+  refId: string;
+  lon: number;
+  lat: number;
+  severity: 'P1' | 'P2';
+  rootCause: string;
+  faultArea: string;
+  network: string;
+  cableName: string;
+  createdName: string;
+  createdTime: string;
+  closedOn: string;
+  alarmClearTime: string;
+  pointIndex: string;
+  status: string;
+};
+
+const GLOBE_WIDGET_ID = 'middle-east-globe';
+const GLOBE_CAMERA_NEAR_RADIUS = 1300;
+const GLOBE_CAMERA_FAR_RADIUS = 3100;
+const GLOBE_CAMERA_ZOOM_OUT_MS = 700;
+const GLOBE_CAMERA_MOVE_MS = 1800;
+const GLOBE_CAMERA_ZOOM_IN_MS = 900;
+const GLOBE_TRANSITION_TOTAL_MS =
+  GLOBE_CAMERA_ZOOM_OUT_MS + GLOBE_CAMERA_MOVE_MS + GLOBE_CAMERA_ZOOM_IN_MS;
+const LANDMARK_PLAY_HOLD_MS = 2200;
+const POPUP_HIDE_LEAD_MS = 260;
+const GLOBE_ACTIVE_LANDMARK_LAYER_NAME = '故障点位（Active）';
+const DEBUG_GLOBE_CLICK = true;
+
+function resolveCurrentVisdocId(): string {
+  const match = window.location.pathname.match(/\/api\/visdocs\/([^/]+)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+function deepClone<T>(value: T): T {
+  if (typeof globalThis.structuredClone === 'function') {
+    return globalThis.structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function logGlobeClickDebug(...args: unknown[]) {
+  if (!DEBUG_GLOBE_CLICK) {
+    return;
+  }
+  console.debug('[ai-board][globe-click]', ...args);
+}
+
+function parseDatasetDate(value?: string): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value.replace(' ', 'T'));
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function formatDatasetTime(value?: string): string {
+  const dateText = value?.trim();
+  if (!dateText) return '--';
+  const timeText = dateText.includes(' ') ? dateText.split(' ')[1] : dateText.split('T')[1];
+  return timeText ? timeText.slice(0, 5) : '--';
+}
+
+function formatDatasetDateTime(value?: string): string {
+  const dateText = value?.trim();
+  if (!dateText) return '--';
+  return dateText.slice(0, 16);
+}
+
+function formatElapsedDuration(startValue?: string, endValue?: string, fallbackEnd = new Date()): string {
+  const start = parseDatasetDate(startValue);
+  if (!start) return '--';
+  const end = parseDatasetDate(endValue) ?? fallbackEnd;
+  const elapsedMs = Math.max(0, end.getTime() - start.getTime());
+  const totalMinutes = Math.floor(elapsedMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m`;
+}
+
+function formatSentenceHeadline(value: string): string {
+  const text = value.trim();
+  if (!text) return '--';
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+}
+
+function formatCoordinate(value?: number): string {
+  return Number.isFinite(value) ? value!.toFixed(4) : '--';
+}
+
+function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritical: boolean) {
   const isP2 = item.eta === 'PENDING' || item.severity === 'WARNING';
   const accentColor = isP2 ? '#FF5F1D' : BRAND.coral;
   const accentSoft = isP2 ? 'rgba(255,95,29,0.2)' : 'rgba(255,55,94,0.15)';
@@ -552,18 +656,18 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
 
         {/* ───────── Big title ───────── */}
         <div className="shrink-0 mb-[14px]">
-          <div className="text-[66px] font-bold leading-[1.02] tracking-normal text-white uppercase">
-            {item.affectedObject}
+          <div className="text-[44px] font-bold leading-[1.08] tracking-normal text-white normal-case truncate whitespace-nowrap">
+            {formatSentenceHeadline(item.phenomenon)}
           </div>
         </div>
 
-        {/* ───────── One-line description ───────── */}
+        {/* ───────── One-line identifiers ───────── */}
         <div className="shrink-0 mb-[28px] flex items-center gap-[14px] text-[24px] text-[rgba(221,223,226,0.78)] font-light">
           <span className="font-art-mono uppercase tracking-normal text-[22px] font-semibold" style={{ color: accentColor }}>
-            {item.ticketId}
+            {item.affectedObject}
           </span>
           <span className="text-[rgba(221,223,226,0.28)]">·</span>
-          <span className="truncate">{item.phenomenon}</span>
+          <span className="font-art-mono uppercase tracking-normal text-[22px] truncate">{item.ticketId}</span>
         </div>
 
         {/* ───────── Divider ───────── */}
@@ -575,7 +679,12 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
         {/* ───────── Unified metric rows ───────── */}
         <div className="flex-1 min-h-0 flex flex-col justify-between py-[8px]">
           {(() => {
-            const durationPct = Math.min(100, Math.max(4, item.progressPct));
+            const createdAt = item.createdAt || item.startTime;
+            const statusText = item.datasetStatus || item.advisory || '--';
+            const statusAccentColor = LEDGER_STATUS_COLORS[statusText] ?? accentColor;
+            const isDone = statusText === 'Done';
+            const statusSegments = 5;
+            const activeStatusSegments = isDone ? statusSegments : statusText === 'In Progress' ? 2 : 1;
             const rows: {
               label: string;
               icon: ReactNode;
@@ -587,19 +696,9 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
                 label: 'Duration',
                 icon: <Hourglass size={24} color={accentColor} />,
                 visual: (
-                  <div
-                    className="relative h-[9px] w-full overflow-hidden"
-                    style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
-                  >
-                    <div
-                      className="h-full"
-                      style={{
-                        width: `${durationPct}%`,
-                        background: `linear-gradient(90deg, ${accentColor}, ${withAlpha(accentColor, 0.55)})`,
-                        boxShadow: `0 0 10px ${withAlpha(accentColor, 0.7)}`,
-                      }}
-                    />
-                  </div>
+                  <span className="text-[22px] uppercase tracking-normal text-white">
+                    Since {formatDatasetDateTime(createdAt)}
+                  </span>
                 ),
                 value: item.duration,
                 valueColor: accentColor,
@@ -607,94 +706,79 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
               {
                 label: 'Status',
                 icon: <StatusPanel size={24} color={accentColor} />,
-                visual: (() => {
-                  const STAGES = ['Open', 'Investigating', 'Repairing', 'Monitoring', 'Resolved'] as const;
-                  const currentIdx = STAGES.indexOf(item.progressStage);
-                  return (
-                    <div className="flex items-center gap-[6px] w-full">
-                      {STAGES.map((stage, i) => {
-                        const reached = i <= currentIdx;
-                        const isCurrent = i === currentIdx;
-                        return (
-                          <div
-                            key={stage}
-                            className="flex-1 h-[7px]"
-                            style={{
-                              backgroundColor: reached
-                                ? accentColor
-                                : 'rgba(255,255,255,0.08)',
-                              boxShadow: isCurrent ? `0 0 10px ${accentColor}` : 'none',
-                              opacity: reached ? (isCurrent ? 1 : 0.55) : 1,
-                            }}
-                          />
-                        );
-                      })}
-                    </div>
-                  );
-                })(),
-                value: item.progressStage,
+                visual: (
+                  <div className="flex items-center gap-[6px] w-full max-w-[310px]">
+                    {Array.from({ length: statusSegments }, (_, i) => {
+                      const reached = i < activeStatusSegments;
+                      const isCurrent = i === activeStatusSegments - 1 && !isDone;
+                      return (
+                        <div
+                          key={i}
+                          className="flex-1 h-[7px]"
+                          style={{
+                            backgroundColor: reached
+                              ? statusAccentColor
+                              : 'rgba(255,255,255,0.08)',
+                            boxShadow: isCurrent ? `0 0 10px ${statusAccentColor}` : 'none',
+                            opacity: reached ? (isCurrent ? 1 : 0.55) : 1,
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                ),
+                value: statusText,
+                valueColor: statusAccentColor,
+              },
+              {
+                label: 'Network',
+                icon: <Network size={24} color={accentColor} />,
+                visual: (
+                  <span className="text-[22px] uppercase tracking-normal text-white">
+                    Route Class
+                  </span>
+                ),
+                value: item.network || '--',
                 valueColor: '#FFFFFF',
               },
               {
-                label: item.snapshotMetricLabel,
-                icon: <LatencyGauge size={24} color={accentColor} />,
+                label: 'Cable',
+                icon: <Ticket size={24} color={accentColor} />,
                 visual: (
-                  <div className="flex items-center gap-[10px]">
-                    <span
-                      className="font-art-mono text-[22px] uppercase tracking-normal truncate text-white"
-                    >
-                      {ticket?.cable ?? item.nodeId}
-                    </span>
-                  </div>
+                  <span className="text-[22px] uppercase tracking-normal text-white">
+                    Point Index {item.pointIndex || '--'}
+                  </span>
                 ),
-                value: item.snapshotMetricValue,
-                valueColor: accentColor,
+                value: item.cableName || '--',
+                valueColor: '#FFFFFF',
               },
               {
-                label: 'Impact',
+                label: 'Created By',
                 icon: <ImpactUsers size={24} color={accentColor} />,
                 visual: (
                   <span className="text-[22px] uppercase tracking-normal text-white">
-                    {item.affectedCustomers} Customers · {item.affectedCircuits} Circuits
+                    Source Team
                   </span>
                 ),
-                value: `${item.affectedCustomers} / ${item.affectedCircuits}`,
+                value: item.createdName || '--',
                 valueColor: '#FFFFFF',
               },
               {
-                label: 'ETR',
-                icon: <EtrClock size={24} color={accentColor} />,
+                label: 'Position',
+                icon: <MapPin size={24} weight="fill" color={accentColor} />,
                 visual: (
                   <span className="text-[22px] uppercase tracking-normal text-white">
-                    Started {item.startTime}
+                    Lat / Lon Position
                   </span>
                 ),
-                value: item.etr.replace(' UTC', ''),
+                value: `${formatCoordinate(item.latitude)}, ${formatCoordinate(item.longitude)}`,
                 valueColor: '#FFFFFF',
-              },
-              {
-                label: 'Risk',
-                icon: <RiskWarning size={24} color={accentColor} />,
-                visual: item.dualRouteImpact ? (
-                  <span
-                    className="text-[22px] uppercase tracking-normal font-semibold whitespace-nowrap"
-                    style={{ color: accentColor }}
-                  >
-                    Dual Route Impact Detected
-                  </span>
-                ) : (
-                  <span className="text-[22px] uppercase tracking-normal text-white">
-                    Single route · contained
-                  </span>
-                ),
-                value: item.riskScore,
-                valueColor: accentColor,
               },
             ];
             return rows.map((row, idx) => (
               <div
                 key={row.label}
-                className="grid grid-cols-[168px_42px_1fr_240px] items-center gap-[20px] py-[28px]"
+                className="grid grid-cols-[168px_42px_1fr_320px] items-center gap-[20px] py-[28px]"
                 style={{
                   borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
                 }}
@@ -707,7 +791,7 @@ function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritica
                 <div className="flex items-center justify-center">{row.icon}</div>
                 <div className="min-w-0 flex items-center">{row.visual}</div>
                 <div
-                  className="font-art-mono text-[30px] font-semibold tabular-nums text-right whitespace-nowrap overflow-hidden"
+                  className="font-art-mono text-[30px] font-semibold tabular-nums text-right whitespace-nowrap overflow-visible"
                   style={{ color: row.valueColor }}
                 >
                   {row.value}
@@ -2236,7 +2320,76 @@ export default function App() {
   const [cablesData, setNetworksData] = useState<any[]>([]);
   const [popsData, setPopsData] = useState<any>({ features: [] });
   const [countriesData, setCountriesData] = useState<any>(null);
-  
+  const [globeWidgetTemplate, setGlobeWidgetTemplate] = useState<any | null>(null);
+  const [activeLandmarkIndex, setActiveLandmarkIndex] = useState(0);
+  const [cycleStartIndex, setCycleStartIndex] = useState(0);
+  const [isAutoCycleEnabled, setIsAutoCycleEnabled] = useState(true);
+  const faultDataset = useDataset('submarine_cable_fault_points_mock');
+  const alarmLandmarks = useMemo<AlarmLandmarkPoint[]>(() => {
+    const rows = Array.isArray(faultDataset?.data) ? faultDataset.data : [];
+
+    return rows
+      .map((row): AlarmLandmarkPoint | null => {
+        const record = row as Record<string, unknown>;
+        const severityText = String(record['Severity'] ?? '')
+          .trim()
+          .toUpperCase();
+        if (severityText !== 'P1' && severityText !== 'P2') {
+          return null;
+        }
+
+        const lon = Number(record['Longitude']);
+        const lat = Number(record['Latitude']);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+          return null;
+        }
+
+        const number = String(record['Number'] ?? '').trim();
+        if (!number) {
+          return null;
+        }
+
+        return {
+          number,
+          refId: String(record['Ref Id'] ?? '').trim(),
+          lon,
+          lat,
+          severity: severityText,
+          rootCause: String(record['Root cause'] ?? '').trim(),
+          faultArea: String(record['Fault area'] ?? '').trim(),
+          network: String(record['Network'] ?? '').trim(),
+          cableName: String(record['cable_name'] ?? '').trim(),
+          createdName: String(record['Created_Name'] ?? '').trim(),
+          createdTime: String(record['Created_Time'] ?? '').trim(),
+          closedOn: String(record['Closed on'] ?? '').trim(),
+          alarmClearTime: String(record['Alarm clear time'] ?? '').trim(),
+          pointIndex: String(record['point_index'] ?? '').trim(),
+          status: String(record['Status'] ?? '').trim(),
+        };
+      })
+      .filter((item): item is AlarmLandmarkPoint => item !== null);
+  }, [faultDataset]);
+  const ledgerEvents = useMemo(() => {
+    return alarmLandmarks.filter((item) => LEDGER_VISIBLE_STATUSES.has(item.status));
+  }, [alarmLandmarks]);
+  const scrollingLedgerEvents = useMemo(
+    () => [...ledgerEvents, ...ledgerEvents, ...ledgerEvents],
+    [ledgerEvents]
+  );
+  const alarmSeverityCounts = useMemo(() => {
+    return alarmLandmarks.reduce(
+      (acc, item) => {
+        if (item.severity === 'P1') {
+          acc.critical += 1;
+        } else if (item.severity === 'P2') {
+          acc.warning += 1;
+        }
+        return acc;
+      },
+      { critical: 0, warning: 0 }
+    );
+  }, [alarmLandmarks]);
+
   // const [targetLonLat, setTargetLonLat] = useState<{lon: number, lat: number}>({ lon: 40, lat: 25 });
   const [viewState2D, setViewState2D] = useState({
     longitude: 40,
@@ -2253,19 +2406,104 @@ export default function App() {
   const [alertPopupPhase, setAlertPopupPhase] = useState<'hidden' | 'visible'>('hidden');
   const [now, setNow] = useState(() => new Date());
   const ledgerViewportRef = useRef<HTMLDivElement | null>(null);
-  const ledgerItemRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const [centerLedgerIndex, setCenterLedgerIndex] = useState(0);
+  const ledgerResumeTimerRef = useRef<number | null>(null);
+  const [ledgerViewportHeight, setLedgerViewportHeight] = useState(0);
+  const [visibleLedgerNumber, setVisibleLedgerNumber] = useState('');
+  const [isLedgerScrollPaused, setIsLedgerScrollPaused] = useState(false);
   const config = STORY_CONFIG[currentStory];
-  const activeAlert = ALERT_SEQUENCE[activeAlertIndex];
   const cameraAlert = ALERT_SEQUENCE[cameraAlertIndex];
-  const activeLedgerIndex = Math.max(
-    0,
-    MOCK_TICKETS.findIndex((ticket) => ticket.id === activeAlert.ticketId)
-  );
+  const enableRight3DMapWidget = false;
+  const activeLandmark = alarmLandmarks[activeLandmarkIndex] ?? null;
+  const activeLedgerNumber = visibleLedgerNumber;
+  const ledgerScrollDistance = ledgerEvents.length * (LEDGER_CARD_HEIGHT + LEDGER_CARD_GAP);
+  const ledgerScrollDurationMs =
+    Math.max(1, ledgerEvents.length) *
+    (POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS + LANDMARK_PLAY_HOLD_MS);
+  const ledgerScrollSpeedPxPerMs =
+    ledgerScrollDurationMs > 0 ? ledgerScrollDistance / ledgerScrollDurationMs : 0;
+  const ledgerInitialOffset =
+    LEDGER_INITIAL_HIGHLIGHT_TOP + ledgerScrollSpeedPxPerMs * LEDGER_HIGHLIGHT_SYNC_MS;
+  const activeAlertTemplate =
+    ALERT_SEQUENCE[activeLandmark?.severity === 'P2' ? 1 : 0] ??
+    ALERT_SEQUENCE[0];
+  const activeAlert = useMemo<AlertSequenceItem>(() => {
+    if (!activeLandmark) {
+      return activeAlertTemplate;
+    }
+
+    const isP2 = activeLandmark.severity === 'P2';
+    const resolvedTime = activeLandmark.closedOn || activeLandmark.alarmClearTime;
+    const durationEnd = activeLandmark.status === 'Done' ? resolvedTime : '';
+    return {
+      ...activeAlertTemplate,
+      ticketId: activeLandmark.number,
+      nodeId: activeLandmark.refId || activeAlertTemplate.nodeId,
+      location: activeLandmark.faultArea || activeAlertTemplate.location,
+      lon: activeLandmark.lon,
+      lat: activeLandmark.lat,
+      severity: isP2 ? 'WARNING' : 'CRITICAL',
+      priority: activeLandmark.severity,
+      title: isP2
+        ? 'SUBMARINE ROUTE DEGRADED'
+        : 'SUBMARINE ROUTE INCIDENT',
+      desc: activeLandmark.rootCause || activeAlertTemplate.desc,
+      eta: isP2 ? 'PENDING' : activeAlertTemplate.eta,
+      region: activeLandmark.faultArea || activeAlertTemplate.region,
+      signal: activeLandmark.refId || activeAlertTemplate.signal,
+      network: activeLandmark.network || activeAlertTemplate.network,
+      cableName: activeLandmark.cableName,
+      createdName: activeLandmark.createdName,
+      createdAt: activeLandmark.createdTime,
+      closedAt: activeLandmark.closedOn,
+      alarmClearedAt: activeLandmark.alarmClearTime,
+      pointIndex: activeLandmark.pointIndex,
+      datasetStatus: activeLandmark.status,
+      latitude: activeLandmark.lat,
+      longitude: activeLandmark.lon,
+      affectedObject:
+        activeLandmark.refId || activeAlertTemplate.affectedObject,
+      phenomenon: activeLandmark.rootCause || activeAlertTemplate.phenomenon,
+      advisory: activeLandmark.status || activeAlertTemplate.advisory,
+      startTime: activeLandmark.createdTime || activeAlertTemplate.startTime,
+      duration: formatElapsedDuration(activeLandmark.createdTime, durationEnd, now),
+      snapshotMetricValue:
+        activeLandmark.refId || activeAlertTemplate.snapshotMetricValue,
+      metrics: [
+        { label: 'Severity', value: activeLandmark.severity },
+        { label: 'Ref ID', value: activeLandmark.refId || '--' },
+        { label: 'Cable', value: activeLandmark.cableName || '--' },
+        { label: 'Status', value: activeLandmark.status || '--' },
+      ],
+    };
+  }, [activeAlertTemplate, activeLandmark, now]);
   const isP1AlarmTone =
     currentStory === 'ALARM_EVENT' &&
     alertPopupPhase === 'visible' &&
     activeAlert.priority === 'P1';
+  const handleLedgerItemClick = (pointNumber: string) => {
+    const targetIndex = alarmLandmarks.findIndex((item) => item.number === pointNumber);
+    if (targetIndex < 0) return;
+
+    setIsAutoCycleEnabled(false);
+    setActiveLandmarkIndex(targetIndex);
+    setVisibleLedgerNumber(pointNumber);
+    setIsLedgerScrollPaused(true);
+    if (ledgerResumeTimerRef.current !== null) {
+      window.clearTimeout(ledgerResumeTimerRef.current);
+    }
+    ledgerResumeTimerRef.current = window.setTimeout(() => {
+      setIsLedgerScrollPaused(false);
+      setVisibleLedgerNumber('');
+      setCycleStartIndex((targetIndex + 1) % Math.max(1, alarmLandmarks.length));
+      setIsAutoCycleEnabled(true);
+      ledgerResumeTimerRef.current = null;
+    }, LEDGER_CLICK_PAUSE_MS);
+    setAlertPopupPhase('hidden');
+
+    window.setTimeout(() => {
+      setAlertPopupPhase('visible');
+    }, 80);
+  };
   
   const storyRef = useRef(currentStory);
   const activeAlertRef = useRef(activeAlert);
@@ -2338,6 +2576,83 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (ledgerResumeTimerRef.current !== null) {
+        window.clearTimeout(ledgerResumeTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const viewport = ledgerViewportRef.current;
+    if (!viewport) return;
+
+    const updateHeight = () => {
+      setLedgerViewportHeight(viewport.getBoundingClientRect().height);
+    };
+
+    updateHeight();
+    const resizeObserver = new ResizeObserver(updateHeight);
+    resizeObserver.observe(viewport);
+    return () => resizeObserver.disconnect();
+  }, [config.rightCard]);
+
+  useEffect(() => {
+    if (alertPopupPhase !== 'visible' || !activeLandmark?.number) {
+      if (isAutoCycleEnabled) {
+        setVisibleLedgerNumber('');
+      }
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setVisibleLedgerNumber(activeLandmark.number);
+    }, LEDGER_HIGHLIGHT_SYNC_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [activeLandmark?.number, alertPopupPhase]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`./widgets.json?ts=${Date.now()}`, {
+          cache: 'no-store',
+        });
+        if (!response.ok) {
+          throw new Error(`widgets manifest request failed: ${response.status}`);
+        }
+
+        const manifest = (await response.json()) as {
+          widgets?: Array<Record<string, unknown>>;
+        };
+        const widget =
+          manifest.widgets?.find((item) => item.id === GLOBE_WIDGET_ID) ??
+          null;
+        if (cancelled) return;
+        setGlobeWidgetTemplate(widget);
+      } catch (error) {
+        console.error('[dashboard] failed to load globe widget config', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (alarmLandmarks.length === 0) {
+      setActiveLandmarkIndex(0);
+      setCycleStartIndex(0);
+      return;
+    }
+
+    setActiveLandmarkIndex((prev) => prev % alarmLandmarks.length);
+    setCycleStartIndex((prev) => prev % alarmLandmarks.length);
+  }, [alarmLandmarks.length]);
+
+  useEffect(() => {
     if (currentStory !== 'ALARM_EVENT') {
       setAlertPopupPhase('hidden');
       return;
@@ -2371,66 +2686,6 @@ export default function App() {
       revealTimers.forEach((timerId) => window.clearTimeout(timerId));
     };
   }, [currentStory]);
-
-  useEffect(() => {
-    if (currentStory !== 'ALARM_EVENT') {
-      setCenterLedgerIndex(0);
-      const viewport = ledgerViewportRef.current;
-      if (viewport) {
-        viewport.scrollTop = 0;
-      }
-      return;
-    }
-
-    if (alertPopupPhase !== 'visible') {
-      return;
-    }
-
-    setCenterLedgerIndex(activeLedgerIndex);
-
-    const viewport = ledgerViewportRef.current;
-    const targetItem = ledgerItemRefs.current[activeLedgerIndex];
-    if (!viewport || !targetItem) {
-      return;
-    }
-
-    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-    const targetTop = Math.max(
-      0,
-      Math.min(
-        maxScrollTop,
-        targetItem.offsetTop - (viewport.clientHeight - targetItem.offsetHeight) / 2
-      )
-    );
-
-    const startTop = viewport.scrollTop;
-    const delta = targetTop - startTop;
-    if (Math.abs(delta) < 1) {
-      viewport.scrollTop = targetTop;
-      return;
-    }
-
-    let rafId = 0;
-    let startTime = 0;
-    const durationMs = 820;
-
-    const step = (timestamp: number) => {
-      if (!startTime) {
-        startTime = timestamp;
-      }
-      const elapsed = timestamp - startTime;
-      const progress = Math.min(1, elapsed / durationMs);
-      const eased = cubicBezierAt(progress, 0.16, 1, 0.3, 1);
-      viewport.scrollTop = startTop + delta * eased;
-
-      if (progress < 1) {
-        rafId = window.requestAnimationFrame(step);
-      }
-    };
-
-    rafId = window.requestAnimationFrame(step);
-    return () => window.cancelAnimationFrame(rafId);
-  }, [currentStory, activeLedgerIndex, alertPopupPhase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3269,8 +3524,8 @@ export default function App() {
                 {config.leftCard === 'alarmEarthStats' && (
                   <div className="flex flex-col gap-[40px]">
                     {renderLeftMetricCard('Outage Capacity', <span className="inline-flex items-baseline gap-[10px]"><AnimatedNumber value={842} /><span className="text-[32px] font-light">Gbps</span></span>, Network)}
-                    {renderLeftMetricCard('Critical', <span className="text-[#FF375E]"><AnimatedNumber value={1} /></span>, Warning, 'coral')}
-                    {renderLeftMetricCard('Warning', <span className="text-[#FF5F1D]"><AnimatedNumber value={2} /></span>, Warning, 'orange')}
+                    {renderLeftMetricCard('Critical', <span className="text-[#FF375E]"><AnimatedNumber value={alarmSeverityCounts.critical} /></span>, Warning, 'coral')}
+                    {renderLeftMetricCard('Warning', <span className="text-[#FF5F1D]"><AnimatedNumber value={alarmSeverityCounts.warning} /></span>, Warning, 'orange')}
                   </div>
                 )}
             </div>
@@ -3490,24 +3745,36 @@ export default function App() {
                     <div className="flex-1 min-h-0">
                       {renderRightCardShell(
                         'Event Ledger',
-                        <div ref={ledgerViewportRef} className="relative h-full w-full overflow-y-auto overflow-x-hidden art-scrollbar">
-                          <div className="flex flex-col gap-[14px] pr-[8px] py-[6px]">
-                            {MOCK_TICKETS.map((t, idx) => {
+                        <div ref={ledgerViewportRef} className="relative h-full w-full overflow-hidden event-ledger-marquee">
+                          {scrollingLedgerEvents.length > 0 ? (
+                          <div
+                            className="flex flex-col gap-[14px] pr-[8px] animate-ledger-free-scroll"
+                            style={{
+                              ['--ledger-scroll-distance' as any]: `${ledgerScrollDistance}px`,
+                              ['--ledger-scroll-start' as any]: `${-ledgerScrollDistance + ledgerInitialOffset}px`,
+                              animationDuration: `${ledgerScrollDurationMs}ms`,
+                              animationPlayState: isLedgerScrollPaused ? 'paused' : 'running',
+                            }}
+                          >
+                            {scrollingLedgerEvents.map((t, idx) => {
                               const accent =
-                                t.severity === 'CRITICAL' ? '#FF375E' :
-                                t.severity === 'WARNING' ? '#FF5F1D' : '#8E9AA0';
+                                t.severity === 'P1' ? '#FF375E' :
+                                t.severity === 'P2' ? '#FF5F1D' : '#8E9AA0';
                               const statusColor = LEDGER_STATUS_COLORS[t.status] ?? '#8E9AA0';
-                              const isHighlighted =
-                                currentStory === 'ALARM_EVENT'
-                                  ? idx === activeLedgerIndex
-                                  : idx === centerLedgerIndex;
+                              const isHighlighted = t.number === activeLedgerNumber;
                               return (
                                 <div
-                                  key={`${t.id}-${idx}`}
-                                  ref={(el) => {
-                                    ledgerItemRefs.current[idx] = el;
+                                  key={`${t.number}-${idx}`}
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() => handleLedgerItemClick(t.number)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                      event.preventDefault();
+                                      handleLedgerItemClick(t.number);
+                                    }
                                   }}
-                                  className="relative grid items-center shrink-0 px-[32px] py-[40px] min-h-[240px]"
+                                  className="relative grid items-center shrink-0 px-[32px] py-[40px] h-[240px] cursor-pointer outline-none"
                                   style={{
                                     gridTemplateColumns: '3px 1fr auto',
                                     columnGap: 32,
@@ -3539,7 +3806,7 @@ export default function App() {
                                   <div className="flex flex-col justify-center gap-[30px] min-w-0">
                                     {/* Meta row: ID · Location */}
                                     <div className="flex items-center gap-[20px] font-art-mono text-[20px] uppercase min-w-0">
-                                      <span className="text-white shrink-0">{t.id}</span>
+                                      <span className="text-white shrink-0">{t.number}</span>
                                       <span
                                         className="h-[20px] w-px shrink-0"
                                         style={{ background: 'rgba(255,255,255,0.18)' }}
@@ -3551,13 +3818,13 @@ export default function App() {
                                           className="shrink-0"
                                           style={{ color: '#8E9AA0' }}
                                         />
-                                        <span className="truncate">{t.location}</span>
+                                        <span className="truncate">{t.faultArea || t.cableName || t.network}</span>
                                       </span>
                                     </div>
 
                                     {/* Subject (full sentence, may wrap) */}
                                     <div className="font-art-sans text-[34px] font-light text-white leading-[1.3]">
-                                      {t.subject}
+                                      {t.rootCause || t.refId}
                                     </div>
                                   </div>
 
@@ -3575,19 +3842,32 @@ export default function App() {
                                         : 'none',
                                     }}
                                   >
-                                    <span
-                                      className="w-[8px] h-[8px] rounded-full"
-                                      style={{
-                                        background: statusColor,
-                                        boxShadow: `0 0 10px ${statusColor}`,
-                                      }}
-                                    />
+                                    {t.status === 'Done' ? (
+                                      <DoneCheck
+                                        size={14}
+                                        color={statusColor}
+                                        className="shrink-0"
+                                      />
+                                    ) : (
+                                      <span
+                                        className="w-[8px] h-[8px] rounded-full"
+                                        style={{
+                                          background: statusColor,
+                                          boxShadow: `0 0 10px ${statusColor}`,
+                                        }}
+                                      />
+                                    )}
                                     <span>{t.status}</span>
                                   </div>
                                 </div>
                               );
                             })}
                           </div>
+                          ) : (
+                            <div className="flex h-full items-center justify-center font-art-mono text-[18px] uppercase tracking-[0.12em] text-[#8E9AA0]">
+                              No In Progress or Done events
+                            </div>
+                          )}
                         </div>,
                         'h-full'
                       )}
@@ -3665,6 +3945,19 @@ export default function App() {
             }
             50% {
               filter: brightness(1.16);
+            }
+          }
+          .animate-ledger-free-scroll {
+            animation-name: ledgerFreeScroll;
+            animation-timing-function: linear;
+            animation-iteration-count: infinite;
+          }
+          @keyframes ledgerFreeScroll {
+            0% {
+              transform: translateY(var(--ledger-scroll-start, 0px));
+            }
+            100% {
+              transform: translateY(calc(var(--ledger-scroll-start, 0px) - var(--ledger-scroll-distance, 0px)));
             }
           }
           @keyframes p1AlarmBreath {
