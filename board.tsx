@@ -751,7 +751,6 @@ function formatElapsedDuration(
 
   return `${hours}h ${String(minutes).padStart(2, '0')}m`;
 }
-
 function renderAlertCardContent(
   item: AlertSequenceItem,
   ticket: any,
@@ -762,6 +761,10 @@ function renderAlertCardContent(
   const accentSoft = isP2 ? 'rgba(255,95,29,0.2)' : 'rgba(255,55,94,0.15)';
   const cardBgSrc = isP2 ? alertPopupBgOrange : alertPopupBg;
   const cardBgTint = isP2 ? 'rgba(24,14,6,0.08)' : 'rgba(20,8,18,0.40)';
+  const durationPct = Math.max(
+    0,
+    Math.min(100, Number.isFinite(item.progressPct) ? item.progressPct : 0)
+  );
 
   return (
     <div
@@ -2819,15 +2822,17 @@ export default function App() {
           return null;
         }
 
-        const number = String(record['Number'] ?? '').trim();
-        if (!number) {
+        const rawNumber = record['Number'];
+        const number = String(rawNumber ?? '').trim();
+        const refId = String(record['Ref Id'] ?? '').trim();
+        if (!number && !refId) {
           return null;
         }
 
         return {
-          number,
-          numberRaw: record['Number'],
-          refId: String(record['Ref Id'] ?? '').trim(),
+          number: number || refId,
+          numberRaw: rawNumber,
+          refId: refId || number,
           refIdRaw: record['Ref Id'],
           lon,
           lat,
@@ -2886,7 +2891,6 @@ export default function App() {
   const config = STORY_CONFIG[currentStory];
   const enableRight3DMapWidget = false;
   const activeLandmark = alarmLandmarks[activeLandmarkIndex] ?? null;
-  const activeLedgerNumber = visibleLedgerNumber;
   const activeAlertTemplate =
     ALERT_SEQUENCE[activeLandmark?.severity === 'P2' ? 1 : 0] ??
     ALERT_SEQUENCE[0];
@@ -3018,52 +3022,6 @@ export default function App() {
     }, 1000);
     return () => window.clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (ledgerResumeTimerRef.current !== null) {
-        window.clearTimeout(ledgerResumeTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (alertPopupPhase !== 'visible' || !activeLandmark?.number) {
-      if (isAutoCycleEnabled) {
-        setVisibleLedgerNumber('');
-      }
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      const nextLedgerNumber = activeLandmark.number;
-      setVisibleLedgerNumber(nextLedgerNumber);
-
-      const viewport = ledgerViewportRef.current;
-      const targetItem = Array.from(
-        viewport?.querySelectorAll<HTMLElement>('[data-ledger-number]') ?? []
-      ).find((item) => item.dataset.ledgerNumber === nextLedgerNumber);
-      if (!viewport || !targetItem) {
-        return;
-      }
-
-      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-      const targetTop = Math.max(
-        0,
-        Math.min(
-          maxScrollTop,
-          targetItem.offsetTop - (viewport.clientHeight - targetItem.offsetHeight) / 2
-        )
-      );
-
-      viewport.scrollTo({
-        top: targetTop,
-        behavior: 'smooth',
-      });
-    }, LEDGER_HIGHLIGHT_SYNC_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [activeLandmark?.number, alertPopupPhase, isAutoCycleEnabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3218,6 +3176,10 @@ export default function App() {
       setAlertPopupPhase('hidden');
       return;
     }
+    if (!globeWidgetTemplate) {
+      logGlobeClickDebug('skip cycle effect: globe widget template not ready');
+      return;
+    }
 
     const hasManualPlaybackRequest =
       manualPlaybackRequest !== null &&
@@ -3231,8 +3193,8 @@ export default function App() {
       return;
     }
 
-    const revealTimers = new Set<number>();
-
+    let cancelled = false;
+    const timers = new Set<number>();
     const postGlobeUpdate = (widget: Record<string, unknown>) => {
       const visdocId = resolveCurrentVisdocId();
       if (!visdocId) {
@@ -3307,10 +3269,12 @@ export default function App() {
           );
         });
 
-        const activeCategoryField =
-          typeof point.number === 'string' && point.number.trim().length > 0
-            ? 'Number'
-            : 'Ref Id';
+        const hasNumberRawValue =
+          point.numberRaw !== null &&
+          point.numberRaw !== undefined &&
+          (typeof point.numberRaw !== 'string' ||
+            point.numberRaw.trim().length > 0);
+        const activeCategoryField = hasNumberRawValue ? 'Number' : 'Ref Id';
         const activeCategoryValue =
           activeCategoryField === 'Number' ? point.number : point.refId;
         const activeCategoryRawValue =
@@ -3481,15 +3445,23 @@ export default function App() {
 
       setActiveLandmarkIndex(index);
       setAlertPopupPhase('hidden');
+      postGlobeUpdate(buildPlaybackWidget(point, false));
 
-      const nextIndex = (activeLandmarkIndex + 1) % alarmLandmarks.length;
-      setActiveLandmarkIndex(nextIndex);
+      const animateTimer = window.setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+        postGlobeUpdate(buildPlaybackWidget(point, true));
+      }, GLOBE_TRANSITION_TOTAL_MS);
+      timers.add(animateTimer);
 
       const revealTimer = window.setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
         setAlertPopupPhase('visible');
       }, POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS);
-
-      timers.push(flyTimer, animateTimer);
+      timers.add(revealTimer);
 
       if (options.allowLoop) {
         const nextTimer = window.setTimeout(() => {
@@ -3501,7 +3473,7 @@ export default function App() {
           });
           playCycle(nextIndex, options);
         }, POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS + LANDMARK_PLAY_HOLD_MS);
-        timers.push(nextTimer);
+        timers.add(nextTimer);
       }
     };
 
@@ -3529,9 +3501,8 @@ export default function App() {
     playCycle(normalizedStartIndex, playbackOptions);
 
     return () => {
-      window.clearTimeout(initTimer);
-      window.clearInterval(interval);
-      revealTimers.forEach((timerId) => window.clearTimeout(timerId));
+      cancelled = true;
+      timers.forEach((timerId) => window.clearTimeout(timerId));
     };
   }, [
     currentStory,
