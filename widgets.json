@@ -353,11 +353,76 @@
               "name": "Latitude",
               "type": "number",
               "id": "81526c16-1fc2-4fd6-99a1-6db82b92ab8f"
+            },
+            {
+              "name": "Severity",
+              "type": "string"
             }
           ],
           "config": {
             "layerType": "marker",
-            "layerName": "标记点图层",
+            "layerName": "标记点图层（P1）",
+            "visible": true,
+            "position": {
+              "type": "geographic",
+              "lonField": {
+                "name": "Longitude"
+              },
+              "latField": {
+                "name": "Latitude"
+              }
+            },
+            "markerModelId": "custom:橘色标点.glb",
+            "size": {
+              "scale": 0.08,
+              "randomness": 0.02
+            },
+            "label": {
+              "fields": []
+            },
+            "animation": {
+              "enabled": true,
+              "appearMs": 1000,
+              "disappearMs": 1000,
+              "clips": [
+                {
+                  "clipName": "报警点位动画",
+                  "enabled": true
+                }
+              ]
+            },
+            "heightOffset": 0.03
+          },
+          "filters": [
+            {
+              "field": "Severity",
+              "operator": "=",
+              "value": "P1"
+            }
+          ],
+          "sorts": []
+        },
+        {
+          "datasetId": "683dea89-f65d-4ae5-a0df-5c0578ac4afe",
+          "fields": [
+            {
+              "name": "Longitude",
+              "type": "number",
+              "id": "0700a019-e7db-4f4e-806d-ec30b46bb89a"
+            },
+            {
+              "name": "Latitude",
+              "type": "number",
+              "id": "81526c16-1fc2-4fd6-99a1-6db82b92ab8f"
+            },
+            {
+              "name": "Severity",
+              "type": "string"
+            }
+          ],
+          "config": {
+            "layerType": "marker",
+            "layerName": "标记点图层（非P1）",
             "visible": true,
             "position": {
               "type": "geographic",
@@ -389,7 +454,13 @@
             },
             "heightOffset": 0.03
           },
-          "filters": [],
+          "filters": [
+            {
+              "field": "Severity",
+              "operator": "!=",
+              "value": "P1"
+            }
+          ],
           "sorts": []
         },
         {
