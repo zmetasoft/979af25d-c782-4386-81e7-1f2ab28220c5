@@ -173,8 +173,180 @@
         "styleConfig": {
           "styleId": "default",
           "styleOverride": {}
+        },
+        "cameraView": {
+          "center": {
+            "lon": 63.865583,
+            "lat": 20.350711
+          },
+          "cameraDistance": 789.26,
+          "bearing": 83.4,
+          "pitch": 52.9
         }
       },
+      "dataConfig": [
+        {
+          "datasetId": "1941c631-34fd-42f4-bec7-fbfb25bde290",
+          "fields": [
+            {
+              "id": "29ebd619-6fe7-4aba-90be-7e221911f3b6",
+              "name": "longitude",
+              "type": "number"
+            },
+            {
+              "id": "9dfa780d-9434-46fd-9988-29a1e17b4a7e",
+              "name": "latitude",
+              "type": "number"
+            },
+            {
+              "id": "af5ad011-b643-4895-9ddb-ea9fec255ce7",
+              "name": "cable_name",
+              "type": "string"
+            }
+          ],
+          "config": {
+            "layerType": "connection",
+            "layerName": "连线图层",
+            "visible": true,
+            "position": {
+              "type": "geographic",
+              "lonField": {
+                "name": "longitude"
+              },
+              "latField": {
+                "name": "latitude"
+              }
+            },
+            "path": {
+              "orderDirection": "asc",
+              "groupField": {
+                "name": "cable_name"
+              }
+            },
+            "style": {
+              "color": "#22D3EE",
+              "opacity": 0.3,
+              "thicknessScale": 0.002,
+              "effectPreset": "pulse"
+            }
+          },
+          "filters": [],
+          "sorts": []
+        },
+        {
+          "datasetId": "683dea89-f65d-4ae5-a0df-5c0578ac4afe",
+          "fields": [
+            {
+              "id": "0700a019-e7db-4f4e-806d-ec30b46bb89a",
+              "name": "Longitude",
+              "type": "number"
+            },
+            {
+              "id": "81526c16-1fc2-4fd6-99a1-6db82b92ab8f",
+              "name": "Latitude",
+              "type": "number"
+            }
+          ],
+          "config": {
+            "layerType": "marker",
+            "layerName": "标记点图层",
+            "visible": true,
+            "position": {
+              "type": "geographic",
+              "lonField": {
+                "name": "Longitude"
+              },
+              "latField": {
+                "name": "Latitude"
+              }
+            },
+            "markerModelId": "custom:警告点位.glb",
+            "size": {
+              "scale": 0.001
+            },
+            "label": {
+              "fields": []
+            },
+            "animation": {
+              "enabled": true,
+              "appearMs": 260,
+              "disappearMs": 220
+            }
+          },
+          "filters": [],
+          "sorts": []
+        },
+        {
+          "datasetId": "24f7ad6b-050e-416f-9cd9-4c89b328fa52",
+          "fields": [
+            {
+              "id": "f04e5f74-bff0-4838-9db3-4c910bc1ae51",
+              "name": "region_name",
+              "type": "string"
+            }
+          ],
+          "config": {
+            "layerType": "region",
+            "layerName": "区域图层",
+            "visible": true,
+            "position": {
+              "type": "nameMatching",
+              "nameField": {
+                "name": "region_name"
+              }
+            },
+            "style": {
+              "color": "#4E61B9",
+              "opacity": 0.4
+            },
+            "match": {
+              "strategy": "firstMatch",
+              "includeDescendants": true
+            }
+          },
+          "filters": [],
+          "sorts": []
+        },
+        {
+          "datasetId": "7d941011-67c5-4203-b570-683af97867dc",
+          "fields": [
+            {
+              "id": "4e174ade-8e09-401a-8fc2-a6b7f7319f36",
+              "name": "lon",
+              "type": "number"
+            },
+            {
+              "id": "47197b9b-191b-4c51-8b12-2789e030fab7",
+              "name": "lat",
+              "type": "number"
+            }
+          ],
+          "config": {
+            "layerType": "pillar",
+            "layerName": "立柱图层",
+            "visible": true,
+            "position": {
+              "type": "geographic",
+              "lonField": {
+                "name": "lon"
+              },
+              "latField": {
+                "name": "lat"
+              }
+            },
+            "height": {
+              "minRatio": 0.02,
+              "scale": 0.3,
+              "radiusScale": 0.01
+            },
+            "label": {
+              "fields": []
+            }
+          },
+          "filters": [],
+          "sorts": []
+        }
+      ],
       "layout": {
         "minHeight": 900
       }

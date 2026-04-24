@@ -1,1 +1,276 @@
-[{"name":"cables_coordinates","type":"file","id":"c1aa7cc0-8717-4d24-a4e4-ae8cc5ea3bc1","datasourceId":"ff53b346-5e6e-4f82-8b2f-2e1ed3ad7f57","config":{},"fields":[{"name":"cable_name","type":"string"},{"name":"cable_type","type":"string"},{"name":"is_protection","type":"string"},{"name":"status","type":"string"},{"name":"point_index","type":"number"},{"name":"longitude","type":"number"},{"name":"latitude","type":"number"}],"$modelType":"dashboard/FileDatasetModel","scope":"local"},{"name":"submarine_cable_fault_points_mock","type":"file","id":"e0a3cbd4-3446-456b-8898-8f0506ec4f5b","datasourceId":"d7c63a8b-743c-4d50-a4ba-2d96f0cf10ef","config":{},"fields":[{"name":"Number","type":"string"},{"name":"Status","type":"string"},{"name":"Network","type":"string"},{"name":"Created_Name","type":"string"},{"name":"Created_Time","type":"string"},{"name":"Ref Id","type":"string"},{"name":"Root cause","type":"string"},{"name":"Fault area","type":"string"},{"name":"Latitude","type":"number"},{"name":"Longitude","type":"number"},{"name":"Severity","type":"string"},{"name":"Alarm clear time","type":"string"},{"name":"Closed on","type":"string"},{"name":"cable_name","type":"string"},{"name":"point_index","type":"number"}],"$modelType":"dashboard/FileDatasetModel","scope":"local"}]
+[
+  {
+    "name": "cables_coordinates",
+    "type": "file",
+    "id": "c1aa7cc0-8717-4d24-a4e4-ae8cc5ea3bc1",
+    "datasourceId": "ff53b346-5e6e-4f82-8b2f-2e1ed3ad7f57",
+    "config": {},
+    "fields": [
+      {
+        "name": "cable_name",
+        "type": "string"
+      },
+      {
+        "name": "cable_type",
+        "type": "string"
+      },
+      {
+        "name": "is_protection",
+        "type": "string"
+      },
+      {
+        "name": "status",
+        "type": "string"
+      },
+      {
+        "name": "point_index",
+        "type": "number"
+      },
+      {
+        "name": "longitude",
+        "type": "number"
+      },
+      {
+        "name": "latitude",
+        "type": "number"
+      }
+    ],
+    "$modelType": "dashboard/FileDatasetModel",
+    "scope": "local"
+  },
+  {
+    "name": "submarine_cable_fault_points_mock",
+    "type": "file",
+    "id": "e0a3cbd4-3446-456b-8898-8f0506ec4f5b",
+    "datasourceId": "d7c63a8b-743c-4d50-a4ba-2d96f0cf10ef",
+    "config": {},
+    "fields": [
+      {
+        "name": "Number",
+        "type": "string"
+      },
+      {
+        "name": "Status",
+        "type": "string"
+      },
+      {
+        "name": "Network",
+        "type": "string"
+      },
+      {
+        "name": "Created_Name",
+        "type": "string"
+      },
+      {
+        "name": "Created_Time",
+        "type": "string"
+      },
+      {
+        "name": "Ref Id",
+        "type": "string"
+      },
+      {
+        "name": "Root cause",
+        "type": "string"
+      },
+      {
+        "name": "Fault area",
+        "type": "string"
+      },
+      {
+        "name": "Latitude",
+        "type": "number"
+      },
+      {
+        "name": "Longitude",
+        "type": "number"
+      },
+      {
+        "name": "Severity",
+        "type": "string"
+      },
+      {
+        "name": "Alarm clear time",
+        "type": "string"
+      },
+      {
+        "name": "Closed on",
+        "type": "string"
+      },
+      {
+        "name": "cable_name",
+        "type": "string"
+      },
+      {
+        "name": "point_index",
+        "type": "number"
+      }
+    ],
+    "$modelType": "dashboard/FileDatasetModel",
+    "scope": "local"
+  },
+  {
+    "name": "柱体",
+    "type": "file",
+    "datasourceId": "3cf04611-013f-4c0b-b7ce-98d4994b3ad9",
+    "config": {},
+    "fields": [
+      {
+        "name": "route_id",
+        "type": "string"
+      },
+      {
+        "name": "node_order",
+        "type": "number"
+      },
+      {
+        "name": "node_name",
+        "type": "string"
+      },
+      {
+        "name": "lon",
+        "type": "number"
+      },
+      {
+        "name": "lat",
+        "type": "number"
+      }
+    ],
+    "$modelType": "dashboard/FileDatasetModel",
+    "id": "7d941011-67c5-4203-b570-683af97867dc",
+    "scope": "local"
+  },
+  {
+    "name": "经过国家",
+    "type": "file",
+    "datasourceId": "7afa580e-fe82-4c7f-9e22-11bbaaeb7ee7",
+    "config": {},
+    "fields": [
+      {
+        "name": "region_name",
+        "type": "string"
+      },
+      {
+        "name": "highlight_value",
+        "type": "number"
+      },
+      {
+        "name": "display_label",
+        "type": "string"
+      }
+    ],
+    "$modelType": "dashboard/FileDatasetModel",
+    "id": "24f7ad6b-050e-416f-9cd9-4c89b328fa52",
+    "scope": "local"
+  },
+  {
+    "name": "连线图层",
+    "type": "file",
+    "datasourceId": "b3fb52ad-ee91-4d9f-b349-eeeef53479bf",
+    "config": {},
+    "fields": [
+      {
+        "name": "cable_name",
+        "type": "string"
+      },
+      {
+        "name": "cable_type",
+        "type": "string"
+      },
+      {
+        "name": "is_protection",
+        "type": "boolean"
+      },
+      {
+        "name": "status",
+        "type": "string"
+      },
+      {
+        "name": "point_index",
+        "type": "number"
+      },
+      {
+        "name": "longitude",
+        "type": "number"
+      },
+      {
+        "name": "latitude",
+        "type": "number"
+      }
+    ],
+    "$modelType": "dashboard/FileDatasetModel",
+    "id": "1941c631-34fd-42f4-bec7-fbfb25bde290",
+    "scope": "local"
+  },
+  {
+    "name": "标记点数据",
+    "type": "file",
+    "datasourceId": "8f6a9217-fc0a-432e-8368-7d0c3ce5bb0d",
+    "config": {},
+    "fields": [
+      {
+        "name": "Number",
+        "type": "string"
+      },
+      {
+        "name": "Status",
+        "type": "string"
+      },
+      {
+        "name": "Network",
+        "type": "string"
+      },
+      {
+        "name": "Created_Name",
+        "type": "string"
+      },
+      {
+        "name": "Created_Time",
+        "type": "string"
+      },
+      {
+        "name": "Ref Id",
+        "type": "string"
+      },
+      {
+        "name": "Root cause",
+        "type": "string"
+      },
+      {
+        "name": "Fault area",
+        "type": "string"
+      },
+      {
+        "name": "Latitude",
+        "type": "number"
+      },
+      {
+        "name": "Longitude",
+        "type": "number"
+      },
+      {
+        "name": "Severity",
+        "type": "string"
+      },
+      {
+        "name": "Alarm clear time",
+        "type": "string"
+      },
+      {
+        "name": "Closed on",
+        "type": "string"
+      },
+      {
+        "name": "cable_name",
+        "type": "string"
+      },
+      {
+        "name": "point_index",
+        "type": "number"
+      }
+    ],
+    "$modelType": "dashboard/FileDatasetModel",
+    "id": "683dea89-f65d-4ae5-a0df-5c0578ac4afe",
+    "scope": "local"
+  }
+]

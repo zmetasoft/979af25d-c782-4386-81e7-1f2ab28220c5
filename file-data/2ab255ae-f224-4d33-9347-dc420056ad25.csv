@@ -1,0 +1,5 @@
+Number,Status,Network,Created_Name,Created_Time,Ref Id,Root cause,Fault area,Latitude,Longitude,Severity,Alarm clear time,Closed on,cable_name,point_index
+FC-20260423-001,In Progress,Main Route,NOC-Riyadh,2026-04-23 09:17:00,GBI-19,Nearshore anchoring interference,Arabian Gulf Segment,26.62574,51.738512,P2,,,GBI,19
+FC-20260423-003,In Progress,Main Route,Field-Team-1,2026-04-23 09:51:00,IMEWE-27,Shallow-seabed abrasion alert,Levant Corridor,29.955978,32.533346,P1,,,IMEWE,27
+FC-20260423-006,Done,Protection Route,NOC-Riyadh,2026-04-23 10:42:00,IEX-60,Repeater thermal oscillation,Red Sea Transit Lane,14.999958,42.489218,P1,2026-04-23 12:57:00,2026-04-23 13:47:00,Indian Europe Xpress (IEX),60
+FC-20260423-010,Done,Main Route,NOC-Egypt,2026-04-23 11:50:00,2Africa-174,Current-induced cable strain spike,Central Red Sea Segment,21.989646,37.412153,P2,2026-04-23 14:05:00,2026-04-23 14:55:00,2Africa,174

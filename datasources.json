@@ -16,5 +16,41 @@
     },
     "$modelType": "dashboard/DatasourceModel",
     "id": "d7c63a8b-743c-4d50-a4ba-2d96f0cf10ef"
+  },
+  {
+    "name": "file-datasource",
+    "type": "file",
+    "config": {
+      "dataId": "341602cd-15fa-470f-95a6-9e5a2b6c370f"
+    },
+    "$modelType": "dashboard/DatasourceModel",
+    "id": "3cf04611-013f-4c0b-b7ce-98d4994b3ad9"
+  },
+  {
+    "name": "file-datasource",
+    "type": "file",
+    "config": {
+      "dataId": "2cf64b70-985c-4cff-b74c-a16e5df10eb5"
+    },
+    "$modelType": "dashboard/DatasourceModel",
+    "id": "7afa580e-fe82-4c7f-9e22-11bbaaeb7ee7"
+  },
+  {
+    "name": "file-datasource",
+    "type": "file",
+    "config": {
+      "dataId": "4c51c343-c315-42e6-98db-e3413bacf739"
+    },
+    "$modelType": "dashboard/DatasourceModel",
+    "id": "b3fb52ad-ee91-4d9f-b349-eeeef53479bf"
+  },
+  {
+    "name": "file-datasource",
+    "type": "file",
+    "config": {
+      "dataId": "2ab255ae-f224-4d33-9347-dc420056ad25"
+    },
+    "$modelType": "dashboard/DatasourceModel",
+    "id": "8f6a9217-fc0a-432e-8368-7d0c3ce5bb0d"
   }
 ]

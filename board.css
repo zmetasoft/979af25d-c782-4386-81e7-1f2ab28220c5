@@ -111,15 +111,4 @@ html, body, #root {
 .alert-side-rail.left::after  { animation: alertFlowDown 2.8s linear infinite; }
 .alert-side-rail.right::after { animation: alertFlowUp   2.8s linear infinite; }
 
-/* Event Ledger — auto-scrolling marquee */
-@keyframes ledgerScroll {
-  0%   { transform: translateY(0); }
-  100% { transform: translateY(-50%); }
-}
-.animate-ledger-scroll {
-  animation: ledgerScroll 24s linear infinite;
-  will-change: transform;
-}
-.event-ledger-marquee:hover .animate-ledger-scroll {
-  animation-play-state: paused;
-}
+/* Event Ledger is driven by the active alert, no autonomous marquee. */
