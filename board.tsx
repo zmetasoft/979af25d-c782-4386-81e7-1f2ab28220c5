@@ -1,18 +1,60 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { WidgetHost, useDataset } from '@zmeta/ai-board-sdk';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
+import {
+  WidgetHost,
+  assetUrl,
+  useDataset,
+  useDatasets,
+} from '@zmeta/ai-board-sdk';
 import * as echarts from 'https://esm.sh/echarts@5.5.1';
 import {
-  Engine, Scene, ArcRotateCamera, Vector3, MeshBuilder,
-  StandardMaterial, Color3, GlowLayer,
-  Color4, HemisphericLight, ParticleSystem, Texture
+  Engine,
+  Scene,
+  ArcRotateCamera,
+  Vector3,
+  MeshBuilder,
+  StandardMaterial,
+  Color3,
+  GlowLayer,
+  Color4,
+  HemisphericLight,
+  ParticleSystem,
+  Texture,
 } from 'https://esm.sh/@babylonjs/core@9.3.0?bundle';
-import { GeoJsonLayer, ScatterplotLayer, PathLayer, ArcLayer } from 'https://esm.sh/@deck.gl/layers@9.3.0?bundle';
+import {
+  GeoJsonLayer,
+  ScatterplotLayer,
+  PathLayer,
+  ArcLayer,
+} from 'https://esm.sh/@deck.gl/layers@9.3.0?bundle';
 import { PathStyleExtension } from 'https://esm.sh/@deck.gl/extensions@9.3.0?bundle';
 import MaplibreMap, { type MapHandle } from './components/MaplibreMap';
 import {
   Plus,
-  CaretUp, CaretDown, Network, Globe, MapPin, Database, Ruler,
-  Lightning, Ticket, Fire, Warning, EtrClock, Hourglass, ImpactUsers, StatusPanel, DoneCheck,
+  CaretUp,
+  CaretDown,
+  Network,
+  Globe,
+  MapPin,
+  Database,
+  Ruler,
+  Lightning,
+  Ticket,
+  Fire,
+  Warning,
+  RiskWarning,
+  EtrClock,
+  Hourglass,
+  ImpactUsers,
+  StatusPanel,
+  LatencyGauge,
   type Icon,
 } from './components/Icons';
 
@@ -250,7 +292,7 @@ const ART = {
   faintWire: '#3A1066', // Dark purple
   dimText: '#8E9AA0', // Silver (Secondary)
   darkPurple: '#3A1066', // Dark purple
-  border: '#4F008C' // Purple (Primary)
+  border: '#4F008C', // Purple (Primary)
 };
 
 const BRAND = {
@@ -266,13 +308,37 @@ const BRAND = {
 } as const;
 
 // ----------------------------------------------------
-// Mock Data 
+// Mock Data
 // ----------------------------------------------------
 const MOCK_DATACENTERS = [
-  { id: 'RDC103', name: 'Riyadh Core', coordinates: [46.884, 24.829] as [number, number], value: 100, status: 'normal' },
-  { id: 'MDC20', name: 'Medina Node', coordinates: [39.524, 24.416] as [number, number], value: 80, status: 'warning' },
-  { id: 'JDC04', name: 'Jeddah Gateway', coordinates: [39.212, 21.464] as [number, number], value: 90, status: 'critical' },
-  { id: 'DDC52', name: 'Dammam Edge', coordinates: [50.084, 26.410] as [number, number], value: 60, status: 'normal' },
+  {
+    id: 'RDC103',
+    name: 'Riyadh Core',
+    coordinates: [46.884, 24.829] as [number, number],
+    value: 100,
+    status: 'normal',
+  },
+  {
+    id: 'MDC20',
+    name: 'Medina Node',
+    coordinates: [39.524, 24.416] as [number, number],
+    value: 80,
+    status: 'warning',
+  },
+  {
+    id: 'JDC04',
+    name: 'Jeddah Gateway',
+    coordinates: [39.212, 21.464] as [number, number],
+    value: 90,
+    status: 'critical',
+  },
+  {
+    id: 'DDC52',
+    name: 'Dammam Edge',
+    coordinates: [50.084, 26.41] as [number, number],
+    value: 60,
+    status: 'normal',
+  },
 ];
 
 const MOCK_TICKETS = [
@@ -383,7 +449,12 @@ type AlertSequenceItem = {
   snapshotMetricValue: string;
   snapshotTrend: 'up' | 'down' | 'flat';
   // ⑦ Progress
-  progressStage: 'Open' | 'Investigating' | 'Repairing' | 'Monitoring' | 'Resolved';
+  progressStage:
+    | 'Open'
+    | 'Investigating'
+    | 'Repairing'
+    | 'Monitoring'
+    | 'Resolved';
   progressPct: number;
   // ⑧ Impact Scope
   affectedCustomers: number;
@@ -422,7 +493,11 @@ const ALERT_SEQUENCE: AlertSequenceItem[] = [
       { time: '14:05', label: 'Traffic rerouted' },
       { time: '14:12', label: 'Field team dispatched' },
     ],
-    actions: ['Isolate failed span', 'Verify surviving path', 'Publish customer notice'],
+    actions: [
+      'Isolate failed span',
+      'Verify surviving path',
+      'Publish customer notice',
+    ],
     priority: 'P1',
     regionPath: 'Egypt Crossing / Red Sea',
     failureType: 'Fiber Cut',
@@ -503,7 +578,9 @@ const ALERT_SEQUENCE: AlertSequenceItem[] = [
 
 type AlarmLandmarkPoint = {
   number: string;
+  numberRaw: unknown;
   refId: string;
+  refIdRaw: unknown;
   lon: number;
   lat: number;
   severity: 'P1' | 'P2';
@@ -530,11 +607,29 @@ const GLOBE_TRANSITION_TOTAL_MS =
 const LANDMARK_PLAY_HOLD_MS = 2200;
 const POPUP_HIDE_LEAD_MS = 260;
 const GLOBE_ACTIVE_LANDMARK_LAYER_NAME = '故障点位（Active）';
+const AI_BOARD_WIDGET_EVENT_MESSAGE_TYPE = 'zmeta-ai-board-widget:event';
 const DEBUG_GLOBE_CLICK = true;
 
 function resolveCurrentVisdocId(): string {
-  const match = window.location.pathname.match(/\/api\/visdocs\/([^/]+)/);
-  return match ? decodeURIComponent(match[1]) : '';
+  const previewMatch = window.location.pathname.match(/^\/preview\/([^/]+)/);
+  if (previewMatch) {
+    return decodeURIComponent(previewMatch[1]);
+  }
+
+  const apiMatch = window.location.pathname.match(/\/api\/visdocs\/([^/]+)/);
+  return apiMatch ? decodeURIComponent(apiMatch[1]) : '';
+}
+
+function resolveWidgetsManifestUrl(): string {
+  const visdocId = resolveCurrentVisdocId();
+  const cacheToken = String(Date.now());
+  if (!visdocId) {
+    return `./widgets.json?ts=${encodeURIComponent(cacheToken)}`;
+  }
+
+  return `/api/visdocs/${encodeURIComponent(
+    visdocId
+  )}/ai-board-preview/widgets.json?ts=${encodeURIComponent(cacheToken)}`;
 }
 
 function deepClone<T>(value: T): T {
@@ -551,47 +646,42 @@ function logGlobeClickDebug(...args: unknown[]) {
   console.debug('[ai-board][globe-click]', ...args);
 }
 
-function parseDatasetDate(value?: string): Date | null {
-  if (!value) return null;
-  const parsed = new Date(value.replace(' ', 'T'));
-  return Number.isFinite(parsed.getTime()) ? parsed : null;
+function resolveLandmarkLayerSeverity(
+  layerConfig: Record<string, any>
+): 'P1' | 'P2' | null {
+  const categoryValue = String(layerConfig.categoryValue ?? '')
+    .trim()
+    .toUpperCase();
+  if (categoryValue === 'P1' || categoryValue === 'P2') {
+    return categoryValue;
+  }
+
+  const layerName = String(layerConfig.layerName ?? '')
+    .trim()
+    .toUpperCase();
+  if (layerName.includes('P1')) {
+    return 'P1';
+  }
+  if (layerName.includes('P2')) {
+    return 'P2';
+  }
+
+  const iconId = String(layerConfig.iconId ?? '').trim();
+  if (iconId.includes('红')) {
+    return 'P1';
+  }
+  if (iconId.includes('蓝')) {
+    return 'P2';
+  }
+
+  return null;
 }
 
-function formatDatasetTime(value?: string): string {
-  const dateText = value?.trim();
-  if (!dateText) return '--';
-  const timeText = dateText.includes(' ') ? dateText.split(' ')[1] : dateText.split('T')[1];
-  return timeText ? timeText.slice(0, 5) : '--';
-}
-
-function formatDatasetDateTime(value?: string): string {
-  const dateText = value?.trim();
-  if (!dateText) return '--';
-  return dateText.slice(0, 16);
-}
-
-function formatElapsedDuration(startValue?: string, endValue?: string, fallbackEnd = new Date()): string {
-  const start = parseDatasetDate(startValue);
-  if (!start) return '--';
-  const end = parseDatasetDate(endValue) ?? fallbackEnd;
-  const elapsedMs = Math.max(0, end.getTime() - start.getTime());
-  const totalMinutes = Math.floor(elapsedMs / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m`;
-}
-
-function formatSentenceHeadline(value: string): string {
-  const text = value.trim();
-  if (!text) return '--';
-  return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
-}
-
-function formatCoordinate(value?: number): string {
-  return Number.isFinite(value) ? value!.toFixed(4) : '--';
-}
-
-function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritical: boolean) {
+function renderAlertCardContent(
+  item: AlertSequenceItem,
+  ticket: any,
+  _isCritical: boolean
+) {
   const isP2 = item.eta === 'PENDING' || item.severity === 'WARNING';
   const accentColor = isP2 ? '#FF5F1D' : BRAND.coral;
   const accentSoft = isP2 ? 'rgba(255,95,29,0.2)' : 'rgba(255,55,94,0.15)';
@@ -599,7 +689,10 @@ function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritic
   const cardBgTint = isP2 ? 'rgba(24,14,6,0.08)' : 'rgba(20,8,18,0.40)';
 
   return (
-    <div className="relative w-full h-full overflow-hidden" style={{ ['--alert-accent' as any]: accentColor }}>
+    <div
+      className="relative w-full h-full overflow-hidden"
+      style={{ ['--alert-accent' as any]: accentColor }}
+    >
       <div
         className="absolute inset-[16px] rounded-[16px] backdrop-blur-[32px] pointer-events-none"
         style={{ backgroundColor: cardBgTint }}
@@ -637,7 +730,6 @@ function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritic
         />
       </div>
       <div className="relative pl-[80px] pr-[96px] pt-[72px] pb-[60px] h-full flex flex-col">
-
         {/* ───────── Header: severity + location + priority ───────── */}
         <div className="flex items-center justify-between gap-[20px] shrink-0 mb-[22px]">
           <div className="flex items-center gap-[16px] min-w-0">
@@ -649,18 +741,29 @@ function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritic
             </div>
             <div className="flex items-center gap-[10px] min-w-0">
               <MapPin size={20} weight="fill" style={{ color: accentColor }} />
-              <span className="text-[22px] font-semibold text-white truncate">{item.location}</span>
+              <span className="text-[22px] font-semibold text-white truncate">
+                {item.location}
+              </span>
             </div>
           </div>
           <div
             className="flex items-center gap-[10px] rounded-full px-[18px] py-[6px] shrink-0"
-            style={{ backgroundColor: accentSoft, border: `1px solid ${withAlpha(accentColor, 0.55)}` }}
+            style={{
+              backgroundColor: accentSoft,
+              border: `1px solid ${withAlpha(accentColor, 0.55)}`,
+            }}
           >
             <div
               className="w-[7px] h-[7px] rounded-full"
-              style={{ backgroundColor: accentColor, boxShadow: `0 0 10px ${accentColor}` }}
+              style={{
+                backgroundColor: accentColor,
+                boxShadow: `0 0 10px ${accentColor}`,
+              }}
             />
-            <div className="text-[20px] font-bold tracking-normal" style={{ color: accentColor }}>
+            <div
+              className="text-[20px] font-bold tracking-normal"
+              style={{ color: accentColor }}
+            >
               {item.priority}
             </div>
           </div>
@@ -675,8 +778,11 @@ function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritic
 
         {/* ───────── One-line identifiers ───────── */}
         <div className="shrink-0 mb-[28px] flex items-center gap-[14px] text-[24px] text-[rgba(221,223,226,0.78)] font-light">
-          <span className="font-art-mono uppercase tracking-normal text-[22px] font-semibold" style={{ color: accentColor }}>
-            {item.affectedObject}
+          <span
+            className="font-art-mono uppercase tracking-normal text-[22px] font-semibold"
+            style={{ color: accentColor }}
+          >
+            {item.ticketId}
           </span>
           <span className="text-[rgba(221,223,226,0.28)]">·</span>
           <span className="font-art-mono uppercase tracking-normal text-[22px] truncate">{item.ticketId}</span>
@@ -685,7 +791,10 @@ function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritic
         {/* ───────── Divider ───────── */}
         <div
           className="h-px w-full shrink-0 mb-[12px]"
-          style={{ background: 'linear-gradient(90deg, rgba(255,255,255,0.22), rgba(255,255,255,0))' }}
+          style={{
+            background:
+              'linear-gradient(90deg, rgba(255,255,255,0.22), rgba(255,255,255,0))',
+          }}
         />
 
         {/* ───────── Unified metric rows ───────── */}
@@ -708,9 +817,22 @@ function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritic
                 label: 'Duration',
                 icon: <Hourglass size={24} color={accentColor} />,
                 visual: (
-                  <span className="text-[22px] uppercase tracking-normal text-white">
-                    Since {formatDatasetDateTime(createdAt)}
-                  </span>
+                  <div
+                    className="relative h-[9px] w-full overflow-hidden"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+                  >
+                    <div
+                      className="h-full"
+                      style={{
+                        width: `${durationPct}%`,
+                        background: `linear-gradient(90deg, ${accentColor}, ${withAlpha(
+                          accentColor,
+                          0.55
+                        )})`,
+                        boxShadow: `0 0 10px ${withAlpha(accentColor, 0.7)}`,
+                      }}
+                    />
+                  </div>
                 ),
                 value: item.duration,
                 valueColor: accentColor,
@@ -718,48 +840,51 @@ function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritic
               {
                 label: 'Status',
                 icon: <StatusPanel size={24} color={accentColor} />,
-                visual: (
-                  <div className="flex items-center gap-[6px] w-full max-w-[310px]">
-                    {Array.from({ length: statusSegments }, (_, i) => {
-                      const reached = i < activeStatusSegments;
-                      const isCurrent = i === activeStatusSegments - 1 && !isDone;
-                      return (
-                        <div
-                          key={i}
-                          className="flex-1 h-[7px]"
-                          style={{
-                            backgroundColor: reached
-                              ? statusAccentColor
-                              : 'rgba(255,255,255,0.08)',
-                            boxShadow: isCurrent ? `0 0 10px ${statusAccentColor}` : 'none',
-                            opacity: reached ? (isCurrent ? 1 : 0.55) : 1,
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                ),
-                value: statusText,
-                valueColor: statusAccentColor,
-              },
-              {
-                label: 'Network',
-                icon: <Network size={24} color={accentColor} />,
-                visual: (
-                  <span className="text-[22px] uppercase tracking-normal text-white">
-                    Route Class
-                  </span>
-                ),
-                value: item.network || '--',
+                visual: (() => {
+                  const STAGES = [
+                    'Open',
+                    'Investigating',
+                    'Repairing',
+                    'Monitoring',
+                    'Resolved',
+                  ] as const;
+                  const currentIdx = STAGES.indexOf(item.progressStage);
+                  return (
+                    <div className="flex items-center gap-[6px] w-full">
+                      {STAGES.map((stage, i) => {
+                        const reached = i <= currentIdx;
+                        const isCurrent = i === currentIdx;
+                        return (
+                          <div
+                            key={stage}
+                            className="flex-1 h-[7px]"
+                            style={{
+                              backgroundColor: reached
+                                ? accentColor
+                                : 'rgba(255,255,255,0.08)',
+                              boxShadow: isCurrent
+                                ? `0 0 10px ${accentColor}`
+                                : 'none',
+                              opacity: reached ? (isCurrent ? 1 : 0.55) : 1,
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  );
+                })(),
+                value: item.progressStage,
                 valueColor: '#FFFFFF',
               },
               {
                 label: 'Cable',
                 icon: <Ticket size={24} color={accentColor} />,
                 visual: (
-                  <span className="text-[22px] uppercase tracking-normal text-white">
-                    Point Index {item.pointIndex || '--'}
-                  </span>
+                  <div className="flex items-center gap-[10px]">
+                    <span className="font-art-mono text-[22px] uppercase tracking-normal truncate text-white">
+                      {ticket?.cable ?? item.nodeId}
+                    </span>
+                  </div>
                 ),
                 value: item.cableName || '--',
                 valueColor: '#FFFFFF',
@@ -769,7 +894,8 @@ function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritic
                 icon: <ImpactUsers size={24} color={accentColor} />,
                 visual: (
                   <span className="text-[22px] uppercase tracking-normal text-white">
-                    Source Team
+                    {item.affectedCustomers} Customers · {item.affectedCircuits}{' '}
+                    Circuits
                   </span>
                 ),
                 value: item.createdName || '--',
@@ -792,7 +918,8 @@ function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritic
                 key={row.label}
                 className="grid grid-cols-[168px_42px_1fr_320px] items-center gap-[20px] py-[28px]"
                 style={{
-                  borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
+                  borderTop:
+                    idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.06)',
                 }}
               >
                 <div className="flex items-center gap-[12px] min-w-0">
@@ -800,7 +927,9 @@ function renderAlertCardContent(item: AlertSequenceItem, _ticket: any, _isCritic
                     {row.label}
                   </span>
                 </div>
-                <div className="flex items-center justify-center">{row.icon}</div>
+                <div className="flex items-center justify-center">
+                  {row.icon}
+                </div>
                 <div className="min-w-0 flex items-center">{row.visual}</div>
                 <div
                   className="font-art-mono text-[30px] font-semibold tabular-nums text-right whitespace-nowrap overflow-visible"
@@ -850,7 +979,7 @@ const STORY_CONFIG = {
     mapWidth: '50%',
     leftCard: 'alarmEarthStats',
     rightCard: 'alarmRight',
-  }
+  },
 };
 
 // ----------------------------------------------------
@@ -870,9 +999,13 @@ function latLonToVector3(lat: number, lon: number, radius: number): Vector3 {
 
 function withAlpha(hex: string, alpha: number) {
   const normalized = hex.replace('#', '');
-  const value = normalized.length === 3
-    ? normalized.split('').map(char => char + char).join('')
-    : normalized;
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : normalized;
   const r = parseInt(value.slice(0, 2), 16);
   const g = parseInt(value.slice(2, 4), 16);
   const b = parseInt(value.slice(4, 6), 16);
@@ -886,11 +1019,14 @@ function getArtColor3(status: string, isNetwork = false): Color3 {
   return Color3.FromHexString(ART.gossamer);
 }
 
-function getArtColorRGB(status: string, isNetwork = false): [number, number, number, number] {
+function getArtColorRGB(
+  status: string,
+  isNetwork = false
+): [number, number, number, number] {
   if (status === 'critical') return [255, 55, 94, 255]; // Coral (#FF375E)
   if (status === 'warning') return [165, 78, 225, 255]; // Moon Light (#A54EE1)
   if (isNetwork) return [255, 255, 255, 180]; // Air (#FFFFFF)
-  return [255, 255, 255, 180]; 
+  return [255, 255, 255, 180];
 }
 
 // ----------------------------------------------------
@@ -899,8 +1035,8 @@ function getArtColorRGB(status: string, isNetwork = false): [number, number, num
 function StatusRingChart({
   percent,
   accent,
-  // duration = 2600,
-}: {
+}: // duration = 2600,
+{
   percent: number;
   accent: string;
   duration?: number;
@@ -915,7 +1051,9 @@ function StatusRingChart({
   useEffect(() => {
     if (!chartRef.current) return;
 
-    chartInstanceRef.current = echarts.getInstanceByDom(chartRef.current) ?? echarts.init(chartRef.current, null, { renderer: 'canvas' });
+    chartInstanceRef.current =
+      echarts.getInstanceByDom(chartRef.current) ??
+      echarts.init(chartRef.current, null, { renderer: 'canvas' });
     resizeObserverRef.current = new ResizeObserver(() => {
       chartInstanceRef.current?.resize();
     });
@@ -947,7 +1085,8 @@ function StatusRingChart({
     // when the same prop re-arrives unchanged).
     const roundedPercent = Math.round(percent);
     const isFirstRun = prevPercentRef.current === null;
-    const percentChanged = !isFirstRun && prevPercentRef.current !== roundedPercent;
+    const percentChanged =
+      !isFirstRun && prevPercentRef.current !== roundedPercent;
     const accentChanged = !isFirstRun && prevAccentRef.current !== accent;
     const shouldAnimate = percentChanged || accentChanged;
     prevPercentRef.current = roundedPercent;
@@ -974,7 +1113,11 @@ function StatusRingChart({
     };
 
     // Animated item style while the charge pulse is sweeping.
-    const animatedItem = (i: number, t: number, settleT: number): SegmentStyle => {
+    const animatedItem = (
+      i: number,
+      t: number,
+      settleT: number
+    ): SegmentStyle => {
       const isFilled = i < filled;
       // Wave charge-in timing: every segment starts lighting at its own time.
       const chargeFraction = 0.75; // portion of animation spent charging-in
@@ -1035,7 +1178,7 @@ function StatusRingChart({
           },
         ],
       },
-      true,
+      true
     );
 
     // No value change → stay static, skip the animation loop entirely.
@@ -1055,7 +1198,8 @@ function StatusRingChart({
         return;
       }
       const t = Math.min(1, elapsed / pulseMs);
-      const settleT = elapsed <= pulseMs ? 0 : Math.min(1, (elapsed - pulseMs) / settleMs);
+      const settleT =
+        elapsed <= pulseMs ? 0 : Math.min(1, (elapsed - pulseMs) / settleMs);
       chart.setOption({
         series: [{ data: buildData((i) => animatedItem(i, t, settleT)) }],
       });
@@ -1084,7 +1228,10 @@ function StatusRingChart({
           width: '54%',
           height: '54%',
           border: `1px solid ${withAlpha(accent, 0.45)}`,
-          boxShadow: `inset 0 0 12px ${withAlpha(accent, 0.55)}, 0 0 10px ${withAlpha(accent, 0.35)}`,
+          boxShadow: `inset 0 0 12px ${withAlpha(
+            accent,
+            0.55
+          )}, 0 0 10px ${withAlpha(accent, 0.35)}`,
         }}
       />
       <div ref={chartRef} className="absolute inset-0 z-10" />
@@ -1159,9 +1306,10 @@ function FlipPercent({ value, accent }: { value: number; accent: string }) {
         key={`cur-${current}`}
         style={{
           ...baseStyle,
-          animation: outgoing !== null
-            ? 'ringFlipIn 420ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both'
-            : undefined,
+          animation:
+            outgoing !== null
+              ? 'ringFlipIn 420ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both'
+              : undefined,
         }}
       >
         {current}%
@@ -1195,20 +1343,16 @@ type GlobalStatusCardItem = {
   trendDirection?: 'up' | 'down';
 };
 
-function StatusSparkline({
-  data,
-  accent,
-}: {
-  data: number[];
-  accent: string;
-}) {
+function StatusSparkline({ data, accent }: { data: number[]; accent: string }) {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstanceRef = useRef<echarts.ECharts | null>(null);
 
   useEffect(() => {
     if (!chartRef.current) return;
 
-    const chart = echarts.getInstanceByDom(chartRef.current) ?? echarts.init(chartRef.current, null, { renderer: 'canvas' });
+    const chart =
+      echarts.getInstanceByDom(chartRef.current) ??
+      echarts.init(chartRef.current, null, { renderer: 'canvas' });
     chartInstanceRef.current = chart;
 
     const resizeObserver = new ResizeObserver(() => {
@@ -1276,7 +1420,7 @@ function StatusSparkline({
               scale: 4,
             },
             zlevel: 1,
-          }
+          },
         ],
       },
       true
@@ -1290,14 +1434,14 @@ function AnimatedNumber({ value }: { value: number }) {
   const [displayValue, setDisplayValue] = useState(value);
   const displayValueRef = useRef(displayValue);
   displayValueRef.current = displayValue;
-  
+
   useEffect(() => {
     let startTimestamp: number | null = null;
     const duration = 1000;
-    
+
     // Capture the current displayValue as the starting point for this animation
     const startValue = displayValueRef.current;
-    
+
     if (startValue === value) return;
 
     let animationId: number;
@@ -1305,24 +1449,24 @@ function AnimatedNumber({ value }: { value: number }) {
     const step = (timestamp: number) => {
       if (!startTimestamp) startTimestamp = timestamp;
       const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      
+
       // easeOutQuart
       const easeProgress = 1 - Math.pow(1 - progress, 4);
-      
+
       const current = startValue + (value - startValue) * easeProgress;
       setDisplayValue(current);
-      
+
       if (progress < 1) {
         animationId = requestAnimationFrame(step);
       } else {
         setDisplayValue(value);
       }
     };
-    
+
     animationId = requestAnimationFrame(step);
     return () => cancelAnimationFrame(animationId);
   }, [value]); // ONLY depend on value to trigger new animation
-  
+
   return <>{Math.round(displayValue).toLocaleString()}</>;
 }
 
@@ -1336,7 +1480,11 @@ function GlobalStatusRingCard({
   return (
     <div className={`relative flex flex-col items-center h-full ${className}`}>
       <div className="mt-[2px]">
-        <StatusRingChart percent={item.percent} accent={item.accent} duration={item.duration} />
+        <StatusRingChart
+          percent={item.percent}
+          accent={item.accent}
+          duration={item.duration}
+        />
       </div>
       <div className="flex flex-col items-center mt-auto mb-auto pt-[16px]">
         <div
@@ -1352,7 +1500,9 @@ function GlobalStatusRingCard({
           {item.trendDirection && (
             <div
               className="flex items-center justify-center"
-              style={{ color: item.trendDirection === 'up' ? '#4ade80' : '#fb7185' }}
+              style={{
+                color: item.trendDirection === 'up' ? '#4ade80' : '#fb7185',
+              }}
             >
               {item.trendDirection === 'up' ? (
                 <CaretUp weight="fill" size={14} />
@@ -1372,9 +1522,33 @@ function GlobalStatusRingCard({
 
 function BusinessStatusChart() {
   const [statusCards, setStatusCards] = useState<GlobalStatusCardItem[]>([
-    { label: 'Outage', percent: 27, value: '92,980', rawValue: 92980, accent: BRAND.coral, duration: 2400, trend: [36, 42, 39, 48, 52, 58, 54, 61, 67, 63, 70, 76] },
-    { label: 'Degradation', percent: 18, value: '41,260', rawValue: 41260, accent: '#BF89EF', duration: 2900, trend: [28, 31, 29, 34, 38, 35, 41, 39, 44, 42, 46, 49] },
-    { label: 'Non-Outage', percent: 55, value: '188,430', rawValue: 188430, accent: BRAND.moon, duration: 3400, trend: [120, 126, 124, 129, 132, 136, 134, 141, 145, 149, 153, 158] },
+    {
+      label: 'Outage',
+      percent: 27,
+      value: '92,980',
+      rawValue: 92980,
+      accent: BRAND.coral,
+      duration: 2400,
+      trend: [36, 42, 39, 48, 52, 58, 54, 61, 67, 63, 70, 76],
+    },
+    {
+      label: 'Degradation',
+      percent: 18,
+      value: '41,260',
+      rawValue: 41260,
+      accent: '#BF89EF',
+      duration: 2900,
+      trend: [28, 31, 29, 34, 38, 35, 41, 39, 44, 42, 46, 49],
+    },
+    {
+      label: 'Non-Outage',
+      percent: 55,
+      value: '188,430',
+      rawValue: 188430,
+      accent: BRAND.moon,
+      duration: 3400,
+      trend: [120, 126, 124, 129, 132, 136, 134, 141, 145, 149, 153, 158],
+    },
   ]);
 
   useEffect(() => {
@@ -1386,11 +1560,14 @@ function BusinessStatusChart() {
           const change = (Math.random() - 0.5) * 0.05 * card.rawValue;
           const newRawValue = Math.max(0, Math.round(card.rawValue + change));
           total += newRawValue;
-          
+
           // Update the trend array for the sparkline
           const lastTrend = card.trend[card.trend.length - 1];
-          const newTrendValue = Math.max(0, lastTrend + (Math.random() - 0.5) * 10);
-          
+          const newTrendValue = Math.max(
+            0,
+            lastTrend + (Math.random() - 0.5) * 10
+          );
+
           return {
             ...card,
             rawValue: newRawValue,
@@ -1431,27 +1608,48 @@ function GlobalAlertSummary() {
   const [alertData, setAlertData] = useState({
     total: 1634,
     pie: [
-      { value: 124, name: 'Critical', itemStyle: { color: BRAND.coral, shadowBlur: 15, shadowColor: BRAND.coral } },
-      { value: 356, name: 'Warning', itemStyle: { color: BRAND.moon, shadowBlur: 10, shadowColor: BRAND.moon } },
-      { value: 1154, name: 'Normal', itemStyle: { color: '#BF89EF', shadowBlur: 10, shadowColor: '#BF89EF' } }
+      {
+        value: 124,
+        name: 'Critical',
+        itemStyle: {
+          color: BRAND.coral,
+          shadowBlur: 15,
+          shadowColor: BRAND.coral,
+        },
+      },
+      {
+        value: 356,
+        name: 'Warning',
+        itemStyle: {
+          color: BRAND.moon,
+          shadowBlur: 10,
+          shadowColor: BRAND.moon,
+        },
+      },
+      {
+        value: 1154,
+        name: 'Normal',
+        itemStyle: { color: '#BF89EF', shadowBlur: 10, shadowColor: '#BF89EF' },
+      },
     ],
     bar: {
       critical: [45, 30, 49],
       warning: [120, 150, 86],
-      normal: [350, 420, 484]
-    }
+      normal: [350, 420, 484],
+    },
   });
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setAlertData(prev => {
+      setAlertData((prev) => {
         // Randomly fluctuate the bar chart data (East, Central, West)
-        const fluctuate = (val: number, volatility: number) => Math.max(0, Math.round(val + (Math.random() - 0.5) * volatility));
-        
+        const fluctuate = (val: number, volatility: number) =>
+          Math.max(0, Math.round(val + (Math.random() - 0.5) * volatility));
+
         const newBar = {
-          critical: prev.bar.critical.map(v => fluctuate(v, 6)),
-          warning: prev.bar.warning.map(v => fluctuate(v, 15)),
-          normal: prev.bar.normal.map(v => fluctuate(v, 30))
+          critical: prev.bar.critical.map((v) => fluctuate(v, 6)),
+          warning: prev.bar.warning.map((v) => fluctuate(v, 15)),
+          normal: prev.bar.normal.map((v) => fluctuate(v, 30)),
         };
 
         // Recalculate totals for the pie chart
@@ -1464,9 +1662,9 @@ function GlobalAlertSummary() {
           pie: [
             { ...prev.pie[0], value: totalCritical },
             { ...prev.pie[1], value: totalWarning },
-            { ...prev.pie[2], value: totalNormal }
+            { ...prev.pie[2], value: totalNormal },
           ],
-          bar: newBar
+          bar: newBar,
         };
       });
     }, 3000);
@@ -1583,7 +1781,11 @@ function GlobalAlertSummary() {
           trigger: 'item',
           backgroundColor: withAlpha(BRAND.onyx, 0.95),
           borderColor: BRAND.purple,
-          textStyle: { color: BRAND.air, fontSize: 14, fontFamily: 'Montserrat' },
+          textStyle: {
+            color: BRAND.air,
+            fontSize: 14,
+            fontFamily: 'Montserrat',
+          },
           padding: [12, 16],
           borderRadius: 8,
         },
@@ -1612,7 +1814,7 @@ function GlobalAlertSummary() {
               borderRadius: 20,
               borderWidth: 0,
             },
-            data: alertData.pie
+            data: alertData.pie,
           },
           {
             type: 'pie',
@@ -1626,8 +1828,8 @@ function GlobalAlertSummary() {
             },
             label: { show: false },
             data: [{ value: 1 }],
-          }
-        ]
+          },
+        ],
       });
 
       barChart.setOption({
@@ -1642,7 +1844,11 @@ function GlobalAlertSummary() {
           axisPointer: { type: 'shadow' },
           backgroundColor: withAlpha(BRAND.onyx, 0.95),
           borderColor: BRAND.purple,
-          textStyle: { color: BRAND.air, fontSize: 14, fontFamily: 'Montserrat' },
+          textStyle: {
+            color: BRAND.air,
+            fontSize: 14,
+            fontFamily: 'Montserrat',
+          },
           padding: [12, 16],
           borderRadius: 8,
         },
@@ -1655,7 +1861,13 @@ function GlobalAlertSummary() {
           data: ['East', 'Central', 'West'],
           axisLine: { show: false },
           axisTick: { show: false },
-          axisLabel: { color: BRAND.air, fontSize: 24, fontWeight: 500, margin: 16, fontFamily: 'Montserrat' }
+          axisLabel: {
+            color: BRAND.air,
+            fontSize: 24,
+            fontWeight: 500,
+            margin: 16,
+            fontFamily: 'Montserrat',
+          },
         },
         series: [
           {
@@ -1664,7 +1876,11 @@ function GlobalAlertSummary() {
             stack: 'total',
             barWidth: 20,
             data: alertData.bar.critical,
-            itemStyle: { color: BRAND.coral, shadowBlur: 10, shadowColor: BRAND.coral }
+            itemStyle: {
+              color: BRAND.coral,
+              shadowBlur: 10,
+              shadowColor: BRAND.coral,
+            },
           },
           {
             name: 'Spacer1',
@@ -1673,7 +1889,7 @@ function GlobalAlertSummary() {
             barWidth: 20,
             data: [6, 6, 6],
             itemStyle: { color: 'transparent' },
-            tooltip: { show: false }
+            tooltip: { show: false },
           },
           {
             name: 'Warning',
@@ -1681,7 +1897,11 @@ function GlobalAlertSummary() {
             stack: 'total',
             barWidth: 20,
             data: alertData.bar.warning,
-            itemStyle: { color: BRAND.moon, shadowBlur: 10, shadowColor: BRAND.moon }
+            itemStyle: {
+              color: BRAND.moon,
+              shadowBlur: 10,
+              shadowColor: BRAND.moon,
+            },
           },
           {
             name: 'Spacer2',
@@ -1690,7 +1910,7 @@ function GlobalAlertSummary() {
             barWidth: 20,
             data: [6, 6, 6],
             itemStyle: { color: 'transparent' },
-            tooltip: { show: false }
+            tooltip: { show: false },
           },
           {
             name: 'Normal',
@@ -1698,9 +1918,9 @@ function GlobalAlertSummary() {
             stack: 'total',
             barWidth: 20,
             itemStyle: { borderRadius: 0, color: '#BF89EF' },
-            data: alertData.bar.normal
-          }
-        ]
+            data: alertData.bar.normal,
+          },
+        ],
       });
 
       settleFrame1 = window.requestAnimationFrame(() => {
@@ -1751,12 +1971,19 @@ function GlobalAlertSummary() {
           ))}
         </div>
       </div>
-      <div className="w-[40%] h-full relative flex flex-col items-center justify-center" style={{ transform: 'translateY(18px) scale(0.82)' }}>
+      <div
+        className="w-[40%] h-full relative flex flex-col items-center justify-center"
+        style={{ transform: 'translateY(18px) scale(0.82)' }}
+      >
         <div className="relative w-full h-full min-h-[200px]">
-          <div ref={pieRef} className="absolute inset-0 z-[1]" style={{ transform: 'skew(5deg, 14deg)' }} />
+          <div
+            ref={pieRef}
+            className="absolute inset-0 z-[1]"
+            style={{ transform: 'skew(5deg, 14deg)' }}
+          />
           <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
             <span className="text-[36px] font-medium text-white font-montserrat">
-               <AnimatedNumber value={alertData.total} />
+              <AnimatedNumber value={alertData.total} />
             </span>
           </div>
         </div>
@@ -1783,26 +2010,26 @@ const KPI_PERIOD_DATA: Record<
 > = {
   today: {
     x: ['00', '03', '06', '09', '12', '15', '18', '21'],
-    alert:    [24, 31, 22, 38, 29, 42, 34, 46],
+    alert: [24, 31, 22, 38, 29, 42, 34, 46],
     resolved: [17, 19, 15, 28, 21, 26, 23, 35],
     max: 60,
   },
   week: {
     x: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-    alert:    [ 92, 118, 104, 136, 115, 148, 122],
-    resolved: [ 68,  79,  85,  96,  72, 113,  88],
+    alert: [92, 118, 104, 136, 115, 148, 122],
+    resolved: [68, 79, 85, 96, 72, 113, 88],
     max: 180,
   },
   month: {
     x: ['W1', 'W2', 'W3', 'W4'],
-    alert:    [480, 612, 534, 680],
+    alert: [480, 612, 534, 680],
     resolved: [362, 418, 455, 524],
     max: 800,
   },
   all: {
     x: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
-    alert:    [ 92, 118, 104, 142, 125, 158, 137, 176, 152, 188],
-    resolved: [ 71,  83,  89, 102,  94, 128, 106, 142, 118, 149],
+    alert: [92, 118, 104, 142, 125, 158, 137, 176, 152, 188],
+    resolved: [71, 83, 89, 102, 94, 128, 106, 142, 118, 149],
     max: 220,
   },
 };
@@ -1822,7 +2049,12 @@ function HistoricalKPIChart() {
       chart.resize();
       window.requestAnimationFrame(() => chart.resize());
     });
-    return () => { window.cancelAnimationFrame(firstFrame); ro.disconnect(); chart.dispose(); chartInstanceRef.current = null; };
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      ro.disconnect();
+      chart.dispose();
+      chartInstanceRef.current = null;
+    };
   }, []);
 
   // Auto-rotate tabs every 5s
@@ -1840,113 +2072,130 @@ function HistoricalKPIChart() {
     const chart = chartInstanceRef.current;
     if (!chart) return;
 
-    const { x, alert: ALERT_VOLUME, resolved: RESOLVED, max } = KPI_PERIOD_DATA[period];
+    const {
+      x,
+      alert: ALERT_VOLUME,
+      resolved: RESOLVED,
+      max,
+    } = KPI_PERIOD_DATA[period];
 
-    chart.setOption({
-      backgroundColor: 'transparent',
-      textStyle: { fontFamily: 'Montserrat' },
-      grid: { top: 20, right: 30, bottom: 30, left: 60 },
-      xAxis: {
-        type: 'category',
-        boundaryGap: false,
-        data: x,
-        axisLine: { lineStyle: { color: withAlpha(BRAND.lightSilver, 0.28) } },
-        axisTick: { show: false },
-        axisLabel: {
-          color: '#FFFFFF',
-          fontSize: 18,
-          fontFamily: 'Montserrat',
-          fontStyle: 'italic',
-          rotate: -14,
-          margin: 14,
-          interval: 0,
+    chart.setOption(
+      {
+        backgroundColor: 'transparent',
+        textStyle: { fontFamily: 'Montserrat' },
+        grid: { top: 20, right: 30, bottom: 30, left: 60 },
+        xAxis: {
+          type: 'category',
+          boundaryGap: false,
+          data: x,
+          axisLine: {
+            lineStyle: { color: withAlpha(BRAND.lightSilver, 0.28) },
+          },
+          axisTick: { show: false },
+          axisLabel: {
+            color: '#FFFFFF',
+            fontSize: 18,
+            fontFamily: 'Montserrat',
+            fontStyle: 'italic',
+            rotate: -14,
+            margin: 14,
+            interval: 0,
+          },
+          splitLine: { show: false },
         },
-        splitLine: { show: false },
+        yAxis: {
+          type: 'value',
+          min: 0,
+          max,
+          interval: max / 4,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: {
+            color: '#FFFFFF',
+            fontSize: 18,
+            fontFamily: 'Montserrat',
+            fontStyle: 'italic',
+            margin: 14,
+          },
+          splitLine: { show: false },
+        },
+        series: [
+          // Alert Volume — single line with same-hue glow
+          {
+            name: 'Alert Volume',
+            type: 'line',
+            smooth: false,
+            data: ALERT_VOLUME,
+            lineStyle: {
+              width: 2.5,
+              color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                { offset: 0, color: withAlpha(BRAND.coral, 0) },
+                { offset: 0.5, color: BRAND.coral },
+                { offset: 1, color: withAlpha(BRAND.coral, 0) },
+              ]),
+              shadowColor: withAlpha(BRAND.coral, 0.85),
+              shadowBlur: 18,
+            },
+            itemStyle: { color: BRAND.coral },
+            symbol: 'none',
+            z: 3,
+            areaStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: withAlpha(BRAND.coral, 0.22) },
+                { offset: 1, color: withAlpha(BRAND.coral, 0) },
+              ]),
+            },
+          },
+          // Resolved — single line with same-hue glow
+          {
+            name: 'Resolved',
+            type: 'line',
+            smooth: false,
+            data: RESOLVED,
+            lineStyle: {
+              width: 2.5,
+              color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                { offset: 0, color: withAlpha(BRAND.moon, 0) },
+                { offset: 0.5, color: BRAND.moon },
+                { offset: 1, color: withAlpha(BRAND.moon, 0) },
+              ]),
+              shadowColor: withAlpha(BRAND.moon, 0.85),
+              shadowBlur: 18,
+            },
+            itemStyle: { color: BRAND.moon },
+            symbol: 'none',
+            z: 3,
+            areaStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: withAlpha(BRAND.moon, 0.22) },
+                { offset: 1, color: withAlpha(BRAND.moon, 0) },
+              ]),
+            },
+          },
+        ],
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: withAlpha(BRAND.onyx, 0.92),
+          borderColor: BRAND.purple,
+          textStyle: {
+            color: BRAND.lightSilver,
+            fontSize: 16,
+            fontFamily: 'Montserrat',
+          },
+        },
+        legend: { show: false },
       },
-      yAxis: {
-        type: 'value',
-        min: 0,
-        max,
-        interval: max / 4,
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisLabel: {
-          color: '#FFFFFF',
-          fontSize: 18,
-          fontFamily: 'Montserrat',
-          fontStyle: 'italic',
-          margin: 14,
-        },
-        splitLine: { show: false },
-      },
-      series: [
-        // Alert Volume — single line with same-hue glow
-        {
-          name: 'Alert Volume',
-          type: 'line',
-          smooth: false,
-          data: ALERT_VOLUME,
-          lineStyle: {
-            width: 2.5,
-            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-              { offset: 0, color: withAlpha(BRAND.coral, 0) },
-              { offset: 0.5, color: BRAND.coral },
-              { offset: 1, color: withAlpha(BRAND.coral, 0) },
-            ]),
-            shadowColor: withAlpha(BRAND.coral, 0.85),
-            shadowBlur: 18,
-          },
-          itemStyle: { color: BRAND.coral },
-          symbol: 'none',
-          z: 3,
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: withAlpha(BRAND.coral, 0.22) },
-              { offset: 1, color: withAlpha(BRAND.coral, 0) },
-            ]),
-          },
-        },
-        // Resolved — single line with same-hue glow
-        {
-          name: 'Resolved',
-          type: 'line',
-          smooth: false,
-          data: RESOLVED,
-          lineStyle: {
-            width: 2.5,
-            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-              { offset: 0, color: withAlpha(BRAND.moon, 0) },
-              { offset: 0.5, color: BRAND.moon },
-              { offset: 1, color: withAlpha(BRAND.moon, 0) },
-            ]),
-            shadowColor: withAlpha(BRAND.moon, 0.85),
-            shadowBlur: 18,
-          },
-          itemStyle: { color: BRAND.moon },
-          symbol: 'none',
-          z: 3,
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: withAlpha(BRAND.moon, 0.22) },
-              { offset: 1, color: withAlpha(BRAND.moon, 0) },
-            ]),
-          },
-        },
-      ],
-      tooltip: {
-        trigger: 'axis',
-        backgroundColor: withAlpha(BRAND.onyx, 0.92),
-        borderColor: BRAND.purple,
-        textStyle: { color: BRAND.lightSilver, fontSize: 16, fontFamily: 'Montserrat' },
-      },
-      legend: { show: false },
-    }, true);
+      true
+    );
   }, [period]);
 
   return (
     <div className="w-full h-full flex flex-col">
       {/* Top bar: tab left edge aligned with Y-axis label left, legend right edge aligned with X-axis right end */}
-      <div className="flex items-center justify-between shrink-0 mb-[14px]" style={{ paddingLeft: 24, paddingRight: 30 }}>
+      <div
+        className="flex items-center justify-between shrink-0 mb-[14px]"
+        style={{ paddingLeft: 24, paddingRight: 30 }}
+      >
         {/* Period tab switcher */}
         <div className="inline-flex h-[32px] border border-[#A54EE1]/30">
           {KPI_TABS.map((tab, idx) => {
@@ -1975,14 +2224,20 @@ function HistoricalKPIChart() {
           <div className="flex items-center gap-[10px]">
             <span
               className="w-[20px] h-[3px] rounded-full shrink-0"
-              style={{ backgroundColor: BRAND.coral, boxShadow: `0 0 8px ${withAlpha(BRAND.coral, 0.6)}` }}
+              style={{
+                backgroundColor: BRAND.coral,
+                boxShadow: `0 0 8px ${withAlpha(BRAND.coral, 0.6)}`,
+              }}
             />
             <span>Alert Volume</span>
           </div>
           <div className="flex items-center gap-[10px]">
             <span
               className="w-[20px] h-[3px] rounded-full shrink-0"
-              style={{ backgroundColor: BRAND.moon, boxShadow: `0 0 8px ${withAlpha(BRAND.moon, 0.6)}` }}
+              style={{
+                backgroundColor: BRAND.moon,
+                boxShadow: `0 0 8px ${withAlpha(BRAND.moon, 0.6)}`,
+              }}
             />
             <span>Resolved</span>
           </div>
@@ -2004,11 +2259,14 @@ const ROOT_CAUSE_TYPES = [
 ] as const;
 type RootCauseTypeKey = (typeof ROOT_CAUSE_TYPES)[number]['key'];
 
-const ROOT_CAUSE_DATA: Record<RootCauseRegion, Record<RootCauseTypeKey, number>> = {
-  APAC:     { hardware: 18, fiber: 6,  power: 4, other: 2 },
-  EMEA:     { hardware: 10, fiber: 12, power: 3, other: 1 },
-  Americas: { hardware: 8,  fiber: 4,  power: 8, other: 2 },
-  Africa:   { hardware: 4,  fiber: 3,  power: 2, other: 1 },
+const ROOT_CAUSE_DATA: Record<
+  RootCauseRegion,
+  Record<RootCauseTypeKey, number>
+> = {
+  APAC: { hardware: 18, fiber: 6, power: 4, other: 2 },
+  EMEA: { hardware: 10, fiber: 12, power: 3, other: 1 },
+  Americas: { hardware: 8, fiber: 4, power: 8, other: 2 },
+  Africa: { hardware: 4, fiber: 3, power: 2, other: 1 },
 };
 
 function rootCauseTypeBaseHex(key: RootCauseTypeKey): string {
@@ -2050,7 +2308,11 @@ function RootCauseChart() {
         axisPointer: { type: 'shadow' },
         backgroundColor: withAlpha(BRAND.onyx, 0.92),
         borderColor: BRAND.purple,
-        textStyle: { color: BRAND.lightSilver, fontSize: 16, fontFamily: 'Montserrat' },
+        textStyle: {
+          color: BRAND.lightSilver,
+          fontSize: 16,
+          fontFamily: 'Montserrat',
+        },
       },
       xAxis: {
         type: 'category',
@@ -2065,7 +2327,12 @@ function RootCauseChart() {
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: { color: '#FFFFFF', fontSize: 18, fontFamily: 'Montserrat' },
-        splitLine: { lineStyle: { color: withAlpha(BRAND.lightSilver, 0.14), type: 'dashed' } },
+        splitLine: {
+          lineStyle: {
+            color: withAlpha(BRAND.lightSilver, 0.14),
+            type: 'dashed',
+          },
+        },
       },
       series: ROOT_CAUSE_TYPES.map((t) => ({
         name: t.label,
@@ -2097,14 +2364,13 @@ function RootCauseChart() {
   }, []);
 
   const topCombos = useMemo(() => {
-    return ROOT_CAUSE_TYPES
-      .map((t) => ({
-        type: t,
-        value: ROOT_CAUSE_REGIONS.reduce(
-          (sum, region) => sum + ROOT_CAUSE_DATA[region][t.key],
-          0,
-        ),
-      }))
+    return ROOT_CAUSE_TYPES.map((t) => ({
+      type: t,
+      value: ROOT_CAUSE_REGIONS.reduce(
+        (sum, region) => sum + ROOT_CAUSE_DATA[region][t.key],
+        0
+      ),
+    }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 3);
   }, []);
@@ -2112,7 +2378,10 @@ function RootCauseChart() {
   const topMax = topCombos[0]?.value ?? 1;
 
   return (
-    <div className="w-full h-full flex items-stretch gap-[28px]" style={{ letterSpacing: 0 }}>
+    <div
+      className="w-full h-full flex items-stretch gap-[28px]"
+      style={{ letterSpacing: 0 }}
+    >
       {/* Left: stacked bar chart — region × failure type */}
       <div className="flex-1 min-w-0 h-full flex flex-col">
         <div className="flex items-center gap-[14px] flex-nowrap justify-center mb-[8px] overflow-hidden">
@@ -2137,7 +2406,10 @@ function RootCauseChart() {
         <div className="flex-1 min-h-0 flex flex-col gap-[10px] overflow-hidden">
           {topCombos.map((combo, idx) => {
             const swatch = rootCauseTypeSwatch(combo.type.key);
-            const barPct = Math.max(6, Math.round((combo.value / topMax) * 100));
+            const barPct = Math.max(
+              6,
+              Math.round((combo.value / topMax) * 100)
+            );
             return (
               <div
                 key={combo.type.key}
@@ -2158,7 +2430,10 @@ function RootCauseChart() {
                   <div className="flex items-center gap-[10px] min-w-0">
                     <span
                       className="w-[8px] h-[8px] rounded-full shrink-0"
-                      style={{ background: swatch, boxShadow: `0 0 8px ${swatch}` }}
+                      style={{
+                        background: swatch,
+                        boxShadow: `0 0 8px ${swatch}`,
+                      }}
                     />
                     <span className="text-[18px] text-white truncate">
                       {combo.type.label}
@@ -2169,7 +2444,10 @@ function RootCauseChart() {
                       className="h-full"
                       style={{
                         width: `${barPct}%`,
-                        background: `linear-gradient(90deg, ${swatch}, ${withAlpha(swatch, 0.5)})`,
+                        background: `linear-gradient(90deg, ${swatch}, ${withAlpha(
+                          swatch,
+                          0.5
+                        )})`,
                         boxShadow: `0 0 6px ${withAlpha(swatch, 0.7)}`,
                       }}
                     />
@@ -2249,12 +2527,19 @@ function MetricIconBadge({
   const scopeClass = `mi-${id}`;
 
   return (
-    <div className="shrink-0 relative w-[84px] h-[84px]" style={{ transform: 'rotate(25deg) skewX(8deg) skewY(-15deg)' }}>
+    <div
+      className="shrink-0 relative w-[84px] h-[84px]"
+      style={{ transform: 'rotate(25deg) skewX(8deg) skewY(-15deg)' }}
+    >
       {/* Scoped CSS: icon gradient fill only */}
       <style>{`.${scopeClass} svg path { fill: url(#${fillId}); }`}</style>
 
       {/* SVG layer */}
-      <svg className="absolute inset-0 pointer-events-none" width="84" height="84">
+      <svg
+        className="absolute inset-0 pointer-events-none"
+        width="84"
+        height="84"
+      >
         <defs>
           <linearGradient id={ringId} x1="100%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor={palette.ring} stopOpacity="1" />
@@ -2266,20 +2551,51 @@ function MetricIconBadge({
             <stop offset="100%" stopColor={palette.fillTo} stopOpacity="0.5" />
           </linearGradient>
           {/* 光斑渐变：集中在右侧（x≈82），其余透明 */}
-          <linearGradient id={`sweep-${id}`} x1="2" y1="42" x2="82" y2="42" gradientUnits="userSpaceOnUse">
-            <stop offset="0%"   stopColor={palette.sweepSoft} stopOpacity="0" />
-            <stop offset="72%"  stopColor={palette.sweepSoft} stopOpacity="0" />
-            <stop offset="84%"  stopColor={palette.sweepSoft} stopOpacity="0.4" />
-            <stop offset="93%"  stopColor={palette.sweepBright} stopOpacity="0.85" />
-            <stop offset="98%"  stopColor={palette.sweepCore}  stopOpacity="1" />
-            <stop offset="100%" stopColor={palette.sweepBright} stopOpacity="0.3" />
+          <linearGradient
+            id={`sweep-${id}`}
+            x1="2"
+            y1="42"
+            x2="82"
+            y2="42"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop offset="0%" stopColor={palette.sweepSoft} stopOpacity="0" />
+            <stop offset="72%" stopColor={palette.sweepSoft} stopOpacity="0" />
+            <stop
+              offset="84%"
+              stopColor={palette.sweepSoft}
+              stopOpacity="0.4"
+            />
+            <stop
+              offset="93%"
+              stopColor={palette.sweepBright}
+              stopOpacity="0.85"
+            />
+            <stop offset="98%" stopColor={palette.sweepCore} stopOpacity="1" />
+            <stop
+              offset="100%"
+              stopColor={palette.sweepBright}
+              stopOpacity="0.3"
+            />
           </linearGradient>
           {/* 宽软发光滤镜 */}
-          <filter id={`fGlow-${id}`} x="-120%" y="-120%" width="340%" height="340%">
+          <filter
+            id={`fGlow-${id}`}
+            x="-120%"
+            y="-120%"
+            width="340%"
+            height="340%"
+          >
             <feGaussianBlur stdDeviation="6" />
           </filter>
           {/* 紧致亮核滤镜 */}
-          <filter id={`fCore-${id}`} x="-50%" y="-50%" width="200%" height="200%">
+          <filter
+            id={`fCore-${id}`}
+            x="-50%"
+            y="-50%"
+            width="200%"
+            height="200%"
+          >
             <feGaussianBlur stdDeviation="1" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
@@ -2289,27 +2605,63 @@ function MetricIconBadge({
         </defs>
 
         {/* 外圈 */}
-        <circle cx="42" cy="42" r="40" fill="none" stroke={`url(#${ringId})`} strokeWidth="1.5" />
+        <circle
+          cx="42"
+          cy="42"
+          r="40"
+          fill="none"
+          stroke={`url(#${ringId})`}
+          strokeWidth="1.5"
+        />
         {/* 内圈 */}
-        <circle cx="42" cy="42" r="29" fill="none" stroke={palette.innerRing} strokeWidth="4" />
+        <circle
+          cx="42"
+          cy="42"
+          r="29"
+          fill="none"
+          stroke={palette.innerRing}
+          strokeWidth="4"
+        />
 
         {/* 流光：整圆描边 + 渐变光斑 + 旋转 */}
         <g>
-          <animateTransform attributeName="transform" type="rotate"
-            from="0 42 42" to="360 42 42" dur="2.4s" repeatCount="indefinite" />
+          <animateTransform
+            attributeName="transform"
+            type="rotate"
+            from="0 42 42"
+            to="360 42 42"
+            dur="2.4s"
+            repeatCount="indefinite"
+          />
           {/* 宽软发光层 */}
-          <circle cx="42" cy="42" r="36" fill="none"
-            stroke={`url(#sweep-${id})`} strokeWidth="4"
-            opacity="0.6" filter={`url(#fGlow-${id})`} />
+          <circle
+            cx="42"
+            cy="42"
+            r="36"
+            fill="none"
+            stroke={`url(#sweep-${id})`}
+            strokeWidth="4"
+            opacity="0.6"
+            filter={`url(#fGlow-${id})`}
+          />
           {/* 紧致亮核层 */}
-          <circle cx="42" cy="42" r="36" fill="none"
-            stroke={`url(#sweep-${id})`} strokeWidth="0.8"
-            opacity="1" filter={`url(#fCore-${id})`} />
+          <circle
+            cx="42"
+            cy="42"
+            r="36"
+            fill="none"
+            stroke={`url(#sweep-${id})`}
+            strokeWidth="0.8"
+            opacity="1"
+            filter={`url(#fCore-${id})`}
+          />
         </g>
       </svg>
 
       {/* Icon */}
-      <div className={`absolute inset-0 flex items-center justify-center z-10 ${scopeClass}`}>
+      <div
+        className={`absolute inset-0 flex items-center justify-center z-10 ${scopeClass}`}
+      >
         <IconComp
           weight="fill"
           size={32}
@@ -2327,18 +2679,50 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<MapRef | null>(null);
   const cameraRef = useRef<ArcRotateCamera | null>(null);
-  
+
+  const runtimeDatasets = useDatasets();
+  const fallbackFaultDataset = useDataset('submarine_cable_fault_points_mock');
   const [dataLoaded, setDataLoaded] = useState(false);
   const [cablesData, setNetworksData] = useState<any[]>([]);
   const [popsData, setPopsData] = useState<any>({ features: [] });
   const [countriesData, setCountriesData] = useState<any>(null);
-  const [globeWidgetTemplate, setGlobeWidgetTemplate] = useState<any | null>(null);
-  const [activeLandmarkIndex, setActiveLandmarkIndex] = useState(0);
-  const [cycleStartIndex, setCycleStartIndex] = useState(0);
-  const [isAutoCycleEnabled, setIsAutoCycleEnabled] = useState(true);
-  const faultDataset = useDataset('submarine_cable_fault_points_mock');
+  const [globeWidgetTemplate, setGlobeWidgetTemplate] = useState<any | null>(
+    null
+  );
+  const alarmSourceDatasets = useMemo(() => {
+    const configuredLandmarkDatasetIds = new Set<string>();
+    const dataConfigs = Array.isArray(globeWidgetTemplate?.dataConfig)
+      ? (globeWidgetTemplate.dataConfig as Array<Record<string, unknown>>)
+      : [];
+
+    dataConfigs.forEach((item) => {
+      const layerConfig =
+        (item?.config as Record<string, unknown> | undefined) ?? {};
+      if (layerConfig.layerType !== 'landmark') {
+        return;
+      }
+      const datasetId = String(item?.datasetId ?? '').trim();
+      if (datasetId) {
+        configuredLandmarkDatasetIds.add(datasetId);
+      }
+    });
+
+    if (configuredLandmarkDatasetIds.size > 0) {
+      return Array.from(configuredLandmarkDatasetIds)
+        .map((datasetId) =>
+          runtimeDatasets.find((dataset) => dataset.id === datasetId)
+        )
+        .filter((dataset): dataset is NonNullable<typeof dataset> =>
+          Boolean(dataset)
+        );
+    }
+
+    return fallbackFaultDataset ? [fallbackFaultDataset] : [];
+  }, [fallbackFaultDataset, globeWidgetTemplate, runtimeDatasets]);
   const alarmLandmarks = useMemo<AlarmLandmarkPoint[]>(() => {
-    const rows = Array.isArray(faultDataset?.data) ? faultDataset.data : [];
+    const rows = alarmSourceDatasets.flatMap((dataset) =>
+      Array.isArray(dataset.data) ? dataset.data : []
+    );
 
     return rows
       .map((row): AlarmLandmarkPoint | null => {
@@ -2363,7 +2747,9 @@ export default function App() {
 
         return {
           number,
+          numberRaw: record['Number'],
           refId: String(record['Ref Id'] ?? '').trim(),
+          refIdRaw: record['Ref Id'],
           lon,
           lat,
           severity: severityText,
@@ -2380,23 +2766,7 @@ export default function App() {
         };
       })
       .filter((item): item is AlarmLandmarkPoint => item !== null);
-  }, [faultDataset]);
-  const ledgerEvents = useMemo(() => {
-    return alarmLandmarks.filter((item) => LEDGER_VISIBLE_STATUSES.has(item.status));
-  }, [alarmLandmarks]);
-  const alarmSeverityCounts = useMemo(() => {
-    return alarmLandmarks.reduce(
-      (acc, item) => {
-        if (item.severity === 'P1') {
-          acc.critical += 1;
-        } else if (item.severity === 'P2') {
-          acc.warning += 1;
-        }
-        return acc;
-      },
-      { critical: 0, warning: 0 }
-    );
-  }, [alarmLandmarks]);
+  }, [alarmSourceDatasets]);
 
   // const [targetLonLat, setTargetLonLat] = useState<{lon: number, lat: number}>({ lon: 40, lat: 25 });
   const [viewState2D, setViewState2D] = useState({
@@ -2404,16 +2774,34 @@ export default function App() {
     latitude: 25,
     zoom: 3.5,
     pitch: 0,
-    bearing: 0
+    bearing: 0,
   });
 
   const [scale, setScale] = useState(1);
   const [currentStory, setCurrentStory] = useState<StoryMode>('GLOBAL');
-  const [alertPopupPhase, setAlertPopupPhase] = useState<'hidden' | 'visible'>('hidden');
+  const [activeLandmarkIndex, setActiveLandmarkIndex] = useState(0);
+  const [cycleStartIndex, setCycleStartIndex] = useState(0);
+  const [isAutoCycleEnabled, setIsAutoCycleEnabled] = useState(true);
+  const [manualPlaybackRequest, setManualPlaybackRequest] = useState<{
+    id: number;
+    index: number;
+  } | null>(null);
+  const [alertPopupPhase, setAlertPopupPhase] = useState<'hidden' | 'visible'>(
+    'hidden'
+  );
   const [now, setNow] = useState(() => new Date());
   const ledgerViewportRef = useRef<HTMLDivElement | null>(null);
-  const ledgerResumeTimerRef = useRef<number | null>(null);
-  const [visibleLedgerNumber, setVisibleLedgerNumber] = useState('');
+  const ledgerItemRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const manualPlaybackRequestIdRef = useRef(0);
+  const lastHandledManualPlaybackRequestIdRef = useRef(0);
+  const [centerLedgerIndex, setCenterLedgerIndex] = useState(0);
+  const requestManualPlayback = useCallback((index: number) => {
+    manualPlaybackRequestIdRef.current += 1;
+    setManualPlaybackRequest({
+      id: manualPlaybackRequestIdRef.current,
+      index,
+    });
+  }, []);
   const config = STORY_CONFIG[currentStory];
   const enableRight3DMapWidget = false;
   const activeLandmark = alarmLandmarks[activeLandmarkIndex] ?? null;
@@ -2438,9 +2826,7 @@ export default function App() {
       lat: activeLandmark.lat,
       severity: isP2 ? 'WARNING' : 'CRITICAL',
       priority: activeLandmark.severity,
-      title: isP2
-        ? 'SUBMARINE ROUTE DEGRADED'
-        : 'SUBMARINE ROUTE INCIDENT',
+      title: isP2 ? 'SUBMARINE ROUTE DEGRADED' : 'SUBMARINE ROUTE INCIDENT',
       desc: activeLandmark.rootCause || activeAlertTemplate.desc,
       eta: isP2 ? 'PENDING' : activeAlertTemplate.eta,
       region: activeLandmark.faultArea || activeAlertTemplate.region,
@@ -2475,29 +2861,7 @@ export default function App() {
     currentStory === 'ALARM_EVENT' &&
     alertPopupPhase === 'visible' &&
     activeAlert.priority === 'P1';
-  const handleLedgerItemClick = (pointNumber: string) => {
-    const targetIndex = alarmLandmarks.findIndex((item) => item.number === pointNumber);
-    if (targetIndex < 0) return;
 
-    setIsAutoCycleEnabled(false);
-    setActiveLandmarkIndex(targetIndex);
-    setVisibleLedgerNumber(pointNumber);
-    if (ledgerResumeTimerRef.current !== null) {
-      window.clearTimeout(ledgerResumeTimerRef.current);
-    }
-    ledgerResumeTimerRef.current = window.setTimeout(() => {
-      setVisibleLedgerNumber('');
-      setCycleStartIndex((targetIndex + 1) % Math.max(1, alarmLandmarks.length));
-      setIsAutoCycleEnabled(true);
-      ledgerResumeTimerRef.current = null;
-    }, LEDGER_CLICK_PAUSE_MS);
-    setAlertPopupPhase('hidden');
-
-    window.setTimeout(() => {
-      setAlertPopupPhase('visible');
-    }, 80);
-  };
-  
   const storyRef = useRef(currentStory);
   const activeAlertRef = useRef(activeAlert);
   useEffect(() => {
@@ -2563,7 +2927,7 @@ export default function App() {
       setScale(Math.min(window.innerWidth / 7680, window.innerHeight / 1350));
     };
     window.addEventListener('resize', handleResize);
-    handleResize(); 
+    handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -2624,19 +2988,20 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(`./widgets.json?ts=${Date.now()}`, {
+        const response = await fetch(resolveWidgetsManifestUrl(), {
           cache: 'no-store',
         });
         if (!response.ok) {
-          throw new Error(`widgets manifest request failed: ${response.status}`);
+          throw new Error(
+            `widgets manifest request failed: ${response.status}`
+          );
         }
 
         const manifest = (await response.json()) as {
           widgets?: Array<Record<string, unknown>>;
         };
         const widget =
-          manifest.widgets?.find((item) => item.id === GLOBE_WIDGET_ID) ??
-          null;
+          manifest.widgets?.find((item) => item.id === GLOBE_WIDGET_ID) ?? null;
         if (cancelled) return;
         setGlobeWidgetTemplate(widget);
       } catch (error) {
@@ -2661,6 +3026,108 @@ export default function App() {
   }, [alarmLandmarks.length]);
 
   useEffect(() => {
+    const handleWidgetEvent = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      const message = event.data as {
+        type?: string;
+        visdocId?: string;
+        widgetId?: string;
+        eventType?: string;
+        payload?: {
+          layer?: {
+            type?: string;
+          };
+          datum?: Record<string, unknown>;
+        };
+      };
+
+      if (message.type !== AI_BOARD_WIDGET_EVENT_MESSAGE_TYPE) {
+        return;
+      }
+
+      const currentVisdocId = resolveCurrentVisdocId();
+      if (!currentVisdocId || message.visdocId !== currentVisdocId) {
+        return;
+      }
+
+      if (
+        message.widgetId !== GLOBE_WIDGET_ID ||
+        message.eventType !== 'data-layer:click'
+      ) {
+        return;
+      }
+
+      const layerType = String(message.payload?.layer?.type ?? '')
+        .trim()
+        .toLowerCase();
+      if (layerType !== 'landmark') {
+        return;
+      }
+
+      const datum = message.payload?.datum ?? {};
+      const clickedNumber = String(datum['Number'] ?? '').trim();
+      const clickedRefId = String(datum['Ref Id'] ?? '').trim();
+      const clickedLon = Number(datum['Longitude']);
+      const clickedLat = Number(datum['Latitude']);
+
+      let targetIndex = -1;
+      if (clickedNumber) {
+        targetIndex = alarmLandmarks.findIndex(
+          (landmark) => landmark.number === clickedNumber
+        );
+      }
+
+      if (targetIndex < 0 && clickedRefId) {
+        targetIndex = alarmLandmarks.findIndex(
+          (landmark) => landmark.refId === clickedRefId
+        );
+      }
+
+      if (
+        targetIndex < 0 &&
+        Number.isFinite(clickedLon) &&
+        Number.isFinite(clickedLat)
+      ) {
+        targetIndex = alarmLandmarks.findIndex(
+          (landmark) =>
+            Math.abs(landmark.lon - clickedLon) < 1e-6 &&
+            Math.abs(landmark.lat - clickedLat) < 1e-6
+        );
+      }
+
+      if (targetIndex < 0) {
+        logGlobeClickDebug('ignore landmark click: no matching point', {
+          clickedNumber,
+          clickedRefId,
+          clickedLon,
+          clickedLat,
+          landmarksCount: alarmLandmarks.length,
+        });
+        return;
+      }
+
+      logGlobeClickDebug('manual landmark click playback', {
+        targetIndex,
+        clickedNumber,
+        clickedRefId,
+      });
+
+      setCurrentStory('ALARM_EVENT');
+      setIsAutoCycleEnabled(false);
+      setCycleStartIndex(targetIndex);
+      requestManualPlayback(targetIndex);
+    };
+
+    window.addEventListener('message', handleWidgetEvent);
+    return () => {
+      window.removeEventListener('message', handleWidgetEvent);
+    };
+  }, [alarmLandmarks, requestManualPlayback]);
+
+  useEffect(() => {
     if (currentStory !== 'ALARM_EVENT') {
       setAlertPopupPhase('hidden');
       return;
@@ -2671,13 +3138,267 @@ export default function App() {
       return;
     }
 
-    const initTimer = window.setTimeout(() => {
-      setAlertPopupPhase('visible');
-    }, ALERT_POPUP_REVEAL_DELAY_MS);
+    const hasManualPlaybackRequest =
+      manualPlaybackRequest !== null &&
+      manualPlaybackRequest.id !==
+        lastHandledManualPlaybackRequestIdRef.current;
+
+    if (!isAutoCycleEnabled && !hasManualPlaybackRequest) {
+      logGlobeClickDebug('skip cycle effect: auto cycle disabled', {
+        hasManualPlaybackRequest,
+      });
+      return;
+    }
 
     const revealTimers = new Set<number>();
 
-    const interval = window.setInterval(() => {
+    const postGlobeUpdate = (widget: Record<string, unknown>) => {
+      const visdocId = resolveCurrentVisdocId();
+      if (!visdocId) {
+        logGlobeClickDebug('skip widget update: visdoc id not found');
+        return;
+      }
+      logGlobeClickDebug('post widget update', {
+        visdocId,
+      });
+      window.postMessage(
+        {
+          type: 'zmeta-ai-board-widget:update',
+          visdocId,
+          widget,
+        },
+        window.location.origin
+      );
+    };
+
+    const buildPlaybackWidget = (
+      point: AlarmLandmarkPoint,
+      animationEnabled: boolean
+    ): Record<string, unknown> => {
+      const widget = deepClone(globeWidgetTemplate) as Record<string, any>;
+      const currentConfig =
+        (widget.config as Record<string, unknown> | undefined) ?? {};
+
+      widget.config = {
+        ...currentConfig,
+        cameraAnimationEnabled: false,
+        cameraConfig: {
+          ...((currentConfig.cameraConfig as Record<string, unknown>) ?? {}),
+          viewLon: point.lon,
+          viewLat: point.lat,
+          radius: GLOBE_CAMERA_NEAR_RADIUS,
+        },
+        cameraTransition: {
+          enabled: true,
+          steps: [
+            {
+              type: 'tweenCamera',
+              to: {
+                radius: GLOBE_CAMERA_FAR_RADIUS,
+              },
+              durationMs: GLOBE_CAMERA_ZOOM_OUT_MS,
+            },
+            {
+              type: 'tweenCamera',
+              to: {
+                viewLon: point.lon,
+                viewLat: point.lat,
+                radius: GLOBE_CAMERA_FAR_RADIUS,
+              },
+              durationMs: GLOBE_CAMERA_MOVE_MS,
+            },
+            {
+              type: 'tweenCamera',
+              to: '@final',
+              durationMs: GLOBE_CAMERA_ZOOM_IN_MS,
+            },
+          ],
+        },
+      };
+
+      if (Array.isArray(widget.dataConfig)) {
+        const sourceDataConfig = widget.dataConfig as Record<string, any>[];
+        const baseDataConfig = sourceDataConfig.filter((item) => {
+          const layerConfig = item?.config as Record<string, any> | undefined;
+          return !(
+            layerConfig?.layerType === 'landmark' &&
+            layerConfig?.layerName === GLOBE_ACTIVE_LANDMARK_LAYER_NAME
+          );
+        });
+
+        const activeCategoryField =
+          typeof point.number === 'string' && point.number.trim().length > 0
+            ? 'Number'
+            : 'Ref Id';
+        const activeCategoryValue =
+          activeCategoryField === 'Number' ? point.number : point.refId;
+        const activeCategoryRawValue =
+          activeCategoryField === 'Number' ? point.numberRaw : point.refIdRaw;
+        const activeCategoryFilterValue =
+          activeCategoryRawValue === null ||
+          activeCategoryRawValue === undefined ||
+          (typeof activeCategoryRawValue === 'string' &&
+            activeCategoryRawValue.trim().length === 0)
+            ? activeCategoryValue
+            : activeCategoryRawValue;
+        const canActivateSinglePoint =
+          typeof activeCategoryValue === 'string' &&
+          activeCategoryValue.trim().length > 0;
+
+        let activeLayerTemplate: Record<string, any> | null = null;
+
+        const normalizedDataConfig = baseDataConfig.map(
+          (item: Record<string, any>) => {
+            const layerConfig = item?.config as Record<string, any> | undefined;
+            if (!layerConfig || layerConfig.layerType !== 'landmark') {
+              return item;
+            }
+
+            const layerSeverity = resolveLandmarkLayerSeverity(layerConfig);
+            if (layerSeverity === point.severity && !activeLayerTemplate) {
+              activeLayerTemplate = item;
+            }
+
+            const style = (layerConfig.style as Record<string, any>) ?? {};
+            const isActiveSeverityLayer =
+              animationEnabled &&
+              canActivateSinglePoint &&
+              layerSeverity === point.severity;
+            const nextFields = Array.isArray(item.fields)
+              ? (item.fields as Array<Record<string, any>>).map((field) => ({
+                  ...field,
+                }))
+              : [];
+            const hasActiveCategoryField = nextFields.some(
+              (field) =>
+                String(field?.name ?? '')
+                  .trim()
+                  .toLowerCase() === activeCategoryField.toLowerCase()
+            );
+            if (isActiveSeverityLayer && !hasActiveCategoryField) {
+              nextFields.push({
+                name: activeCategoryField,
+                type: 'string',
+              });
+            }
+            const nextFilters = Array.isArray(item.filters)
+              ? (item.filters as Array<Record<string, any>>).map((filter) => ({
+                  ...filter,
+                }))
+              : [];
+            if (isActiveSeverityLayer) {
+              nextFilters.push({
+                field: activeCategoryField,
+                operator: '!=',
+                value: activeCategoryFilterValue,
+              });
+            }
+            return {
+              ...item,
+              fields: nextFields,
+              filters: nextFilters,
+              config: {
+                ...layerConfig,
+                enabled: true,
+                style: {
+                  ...style,
+                  animationEnabled: false,
+                },
+              },
+            };
+          }
+        );
+
+        if (activeLayerTemplate && animationEnabled && canActivateSinglePoint) {
+          const activeConfig = activeLayerTemplate.config as Record<
+            string,
+            any
+          >;
+          const activeStyle = (activeConfig.style as Record<string, any>) ?? {};
+          const activeFields = Array.isArray(activeLayerTemplate.fields)
+            ? (activeLayerTemplate.fields as Array<Record<string, any>>).map(
+                (field) => ({ ...field })
+              )
+            : [];
+          const hasActiveCategoryField = activeFields.some(
+            (field) =>
+              String(field?.name ?? '')
+                .trim()
+                .toLowerCase() === activeCategoryField.toLowerCase()
+          );
+          if (!hasActiveCategoryField) {
+            activeFields.push({
+              name: activeCategoryField,
+              type: 'string',
+            });
+          }
+          const activeLayerFilters = Array.isArray(activeLayerTemplate.filters)
+            ? (activeLayerTemplate.filters as Array<Record<string, any>>).map(
+                (filter) => ({ ...filter })
+              )
+            : [];
+          activeLayerFilters.push({
+            field: activeCategoryField,
+            operator: '=',
+            value: activeCategoryFilterValue,
+          });
+          normalizedDataConfig.push({
+            ...activeLayerTemplate,
+            fields: activeFields,
+            filters: activeLayerFilters,
+            config: {
+              ...activeConfig,
+              layerName: GLOBE_ACTIVE_LANDMARK_LAYER_NAME,
+              enabled: true,
+              categoryField: activeCategoryField,
+              categoryValue: activeCategoryValue,
+              style: {
+                ...activeStyle,
+                animationEnabled: true,
+              },
+            },
+          });
+        } else if (animationEnabled && !canActivateSinglePoint) {
+          logGlobeClickDebug(
+            'skip active landmark layer: empty category value',
+            {
+              activeCategoryField,
+              activeCategoryValue,
+              point,
+            }
+          );
+        }
+
+        widget.dataConfig = normalizedDataConfig;
+      }
+
+      return widget;
+    };
+
+    const playCycle = (
+      index: number,
+      options: { allowLoop: boolean; source: 'auto' | 'click' }
+    ) => {
+      if (cancelled) {
+        return;
+      }
+
+      const point = alarmLandmarks[index];
+      if (!point) {
+        logGlobeClickDebug('playCycle abort: point not found', {
+          index,
+          landmarksCount: alarmLandmarks.length,
+        });
+        return;
+      }
+      logGlobeClickDebug('playCycle start', {
+        index,
+        point,
+        source: options.source,
+        allowLoop: options.allowLoop,
+      });
+
+      setActiveLandmarkIndex(index);
       setAlertPopupPhase('hidden');
 
       const nextIndex = (activeLandmarkIndex + 1) % alarmLandmarks.length;
@@ -2685,16 +3406,103 @@ export default function App() {
 
       const revealTimer = window.setTimeout(() => {
         setAlertPopupPhase('visible');
-      }, ALERT_POPUP_REVEAL_DELAY_MS);
-      revealTimers.add(revealTimer);
-    }, ALERT_ROTATION_INTERVAL_MS);
+      }, POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS);
+
+      timers.push(flyTimer, animateTimer);
+
+      if (options.allowLoop) {
+        const nextTimer = window.setTimeout(() => {
+          if (cancelled) return;
+          const nextIndex = (index + 1) % alarmLandmarks.length;
+          logGlobeClickDebug('playCycle schedule next', {
+            index,
+            nextIndex,
+          });
+          playCycle(nextIndex, options);
+        }, POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS + LANDMARK_PLAY_HOLD_MS);
+        timers.push(nextTimer);
+      }
+    };
+
+    const startIndexSeed =
+      hasManualPlaybackRequest && manualPlaybackRequest
+        ? manualPlaybackRequest.index
+        : cycleStartIndex;
+    const normalizedStartIndex =
+      ((startIndexSeed % alarmLandmarks.length) + alarmLandmarks.length) %
+      alarmLandmarks.length;
+    if (hasManualPlaybackRequest && manualPlaybackRequest) {
+      lastHandledManualPlaybackRequestIdRef.current = manualPlaybackRequest.id;
+    }
+    const playbackOptions = {
+      allowLoop: !hasManualPlaybackRequest && isAutoCycleEnabled,
+      source: hasManualPlaybackRequest ? 'click' : 'auto',
+    } as const;
+    logGlobeClickDebug('cycle effect start', {
+      normalizedStartIndex,
+      cycleStartIndex,
+      isAutoCycleEnabled,
+      hasManualPlaybackRequest,
+      source: playbackOptions.source,
+    });
+    playCycle(normalizedStartIndex, playbackOptions);
 
     return () => {
       window.clearTimeout(initTimer);
       window.clearInterval(interval);
       revealTimers.forEach((timerId) => window.clearTimeout(timerId));
     };
-  }, [currentStory, activeLandmarkIndex, alarmLandmarks.length]);
+  }, [
+    currentStory,
+    globeWidgetTemplate,
+    alarmLandmarks,
+    cycleStartIndex,
+    isAutoCycleEnabled,
+    manualPlaybackRequest,
+  ]);
+
+  useEffect(() => {
+    if (currentStory !== 'ALARM_EVENT') return;
+
+    let rafId = 0;
+    let prevCenterIdx = -1;
+
+    const updateCenterHighlight = () => {
+      const viewport = ledgerViewportRef.current;
+      if (!viewport) {
+        rafId = window.requestAnimationFrame(updateCenterHighlight);
+        return;
+      }
+
+      const viewportRect = viewport.getBoundingClientRect();
+      const viewportCenterY = viewportRect.top + viewportRect.height / 2;
+      let closestIdx = -1;
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      ledgerItemRefs.current.forEach((item, idx) => {
+        if (!item) return;
+        const rect = item.getBoundingClientRect();
+        if (rect.bottom <= viewportRect.top || rect.top >= viewportRect.bottom)
+          return;
+        const itemCenterY = rect.top + rect.height / 2;
+        const distance = Math.abs(itemCenterY - viewportCenterY);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIdx = idx;
+        }
+      });
+
+      if (closestIdx >= 0 && closestIdx !== prevCenterIdx) {
+        prevCenterIdx = closestIdx;
+        setCenterLedgerIndex(closestIdx);
+      }
+
+      rafId = window.requestAnimationFrame(updateCenterHighlight);
+    };
+
+    rafId = window.requestAnimationFrame(updateCenterHighlight);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [currentStory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2714,19 +3522,32 @@ export default function App() {
         console.error('[dashboard] failed to load geo data', err);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Babylon.js (The 3D Joystick / Generative Sculpture)
   useEffect(() => {
     if (!canvasRef.current || !dataLoaded) return;
 
-    const engine = new Engine(canvasRef.current, true, { preserveDrawingBuffer: true, stencil: true, antialias: true });
+    const engine = new Engine(canvasRef.current, true, {
+      preserveDrawingBuffer: true,
+      stencil: true,
+      antialias: true,
+    });
     const scene = new Scene(engine);
     scene.clearColor = Color4.FromHexString(ART.void + 'FF'); // Brand Dark Base
 
     // Camera (Zoomed in for monolithic feel)
-    const camera = new ArcRotateCamera("camera", -Math.PI / 4, Math.PI / 2.5, EARTH_RADIUS * 1.6, Vector3.Zero(), scene);
+    const camera = new ArcRotateCamera(
+      'camera',
+      -Math.PI / 4,
+      Math.PI / 2.5,
+      EARTH_RADIUS * 1.6,
+      Vector3.Zero(),
+      scene
+    );
     camera.attachControl(canvasRef.current, true);
     camera.wheelPrecision = 100;
     camera.lowerRadiusLimit = EARTH_RADIUS * 1.1;
@@ -2734,18 +3555,29 @@ export default function App() {
     cameraRef.current = camera;
 
     // Lighting — raised for visibility
-    const hemiLight = new HemisphericLight("hemiLight", new Vector3(0, 1, 0), scene);
+    const hemiLight = new HemisphericLight(
+      'hemiLight',
+      new Vector3(0, 1, 0),
+      scene
+    );
     hemiLight.intensity = 0.28;
     hemiLight.diffuse = Color3.FromHexString('#C0A0FF');
     hemiLight.groundColor = Color3.FromHexString('#1A0840');
 
     // Ethereal Glow — stronger
-    const gl = new GlowLayer("glow", scene, { mainTextureFixedSize: 1024, blurKernelSize: 64 });
+    const gl = new GlowLayer('glow', scene, {
+      mainTextureFixedSize: 1024,
+      blurKernelSize: 64,
+    });
     gl.intensity = 1.6;
 
     // The Void Sphere (Invisible Earth, only grid shows)
-    const earth = MeshBuilder.CreateSphere("earth", { segments: 128, diameter: EARTH_RADIUS * 2 }, scene);
-    const earthMat = new StandardMaterial("earthMat", scene);
+    const earth = MeshBuilder.CreateSphere(
+      'earth',
+      { segments: 128, diameter: EARTH_RADIUS * 2 },
+      scene
+    );
+    const earthMat = new StandardMaterial('earthMat', scene);
     earthMat.diffuseColor = Color3.FromHexString(ART.void);
     earthMat.emissiveColor = Color3.FromHexString(ART.void);
     earthMat.alpha = 0.95;
@@ -2753,8 +3585,12 @@ export default function App() {
 
     // ── Atmospheric glow layers (light purple halo around the earth) ──
     // Inner atmosphere — dense, warm lavender
-    const atmo1 = MeshBuilder.CreateSphere("atmo1", { segments: 64, diameter: EARTH_RADIUS * 2.06 }, scene);
-    const atmo1Mat = new StandardMaterial("atmo1Mat", scene);
+    const atmo1 = MeshBuilder.CreateSphere(
+      'atmo1',
+      { segments: 64, diameter: EARTH_RADIUS * 2.06 },
+      scene
+    );
+    const atmo1Mat = new StandardMaterial('atmo1Mat', scene);
     atmo1Mat.emissiveColor = Color3.FromHexString('#7B30C8');
     atmo1Mat.alpha = 0.025;
     atmo1Mat.backFaceCulling = false;
@@ -2763,8 +3599,12 @@ export default function App() {
     gl.addIncludedOnlyMesh(atmo1);
 
     // Mid atmosphere — lighter, wider
-    const atmo2 = MeshBuilder.CreateSphere("atmo2", { segments: 48, diameter: EARTH_RADIUS * 2.18 }, scene);
-    const atmo2Mat = new StandardMaterial("atmo2Mat", scene);
+    const atmo2 = MeshBuilder.CreateSphere(
+      'atmo2',
+      { segments: 48, diameter: EARTH_RADIUS * 2.18 },
+      scene
+    );
+    const atmo2Mat = new StandardMaterial('atmo2Mat', scene);
     atmo2Mat.emissiveColor = Color3.FromHexString('#9050D0');
     atmo2Mat.alpha = 0.015;
     atmo2Mat.backFaceCulling = false;
@@ -2773,8 +3613,12 @@ export default function App() {
     gl.addIncludedOnlyMesh(atmo2);
 
     // Outer corona — very diffuse, barely visible
-    const atmo3 = MeshBuilder.CreateSphere("atmo3", { segments: 32, diameter: EARTH_RADIUS * 2.38 }, scene);
-    const atmo3Mat = new StandardMaterial("atmo3Mat", scene);
+    const atmo3 = MeshBuilder.CreateSphere(
+      'atmo3',
+      { segments: 32, diameter: EARTH_RADIUS * 2.38 },
+      scene
+    );
+    const atmo3Mat = new StandardMaterial('atmo3Mat', scene);
     atmo3Mat.emissiveColor = Color3.FromHexString('#8040C0');
     atmo3Mat.alpha = 0.008;
     atmo3Mat.backFaceCulling = false;
@@ -2783,25 +3627,35 @@ export default function App() {
     gl.addIncludedOnlyMesh(atmo3);
 
     // Architectural Constellation Grid — brighter
-    const grid = MeshBuilder.CreateSphere("grid", { segments: 48, diameter: EARTH_RADIUS * 2 + 0.01 }, scene);
-    const gridMat = new StandardMaterial("gridMat", scene);
+    const grid = MeshBuilder.CreateSphere(
+      'grid',
+      { segments: 48, diameter: EARTH_RADIUS * 2 + 0.01 },
+      scene
+    );
+    const gridMat = new StandardMaterial('gridMat', scene);
     gridMat.wireframe = true;
     gridMat.emissiveColor = Color3.FromHexString('#6A00BB');
     gridMat.alpha = 0.55;
     grid.material = gridMat;
 
     // ── Galaxy / Star field — enhanced ──
-    const particleSystem = new ParticleSystem("particles", 10000, scene);
-    particleSystem.particleTexture = new Texture("https://playground.babylonjs.com/textures/flare.png", scene);
+    const particleSystem = new ParticleSystem('particles', 10000, scene);
+    particleSystem.particleTexture = new Texture(
+      'https://playground.babylonjs.com/textures/flare.png',
+      scene
+    );
 
-    const sphereEmitter = particleSystem.createSphereEmitter(EARTH_RADIUS * 4.5, 0);
+    const sphereEmitter = particleSystem.createSphereEmitter(
+      EARTH_RADIUS * 4.5,
+      0
+    );
     particleSystem.particleEmitterType = sphereEmitter;
     particleSystem.emitter = Vector3.Zero();
 
     // Richer star palette: bright white + lavender + soft blue-purple
-    particleSystem.color1 = new Color4(1.0, 1.0, 1.0, 0.9);        // pure white stars
-    particleSystem.color2 = new Color4(0.72, 0.45, 1.0, 0.75);     // lavender stars
-    particleSystem.colorDead = Color4.FromHexString(ART.void + "00");
+    particleSystem.color1 = new Color4(1.0, 1.0, 1.0, 0.9); // pure white stars
+    particleSystem.color2 = new Color4(0.72, 0.45, 1.0, 0.75); // lavender stars
+    particleSystem.colorDead = Color4.FromHexString(ART.void + '00');
 
     // Varied sizes: tiny pinpoints + occasional larger glows
     particleSystem.minSize = 0.02;
@@ -2824,14 +3678,17 @@ export default function App() {
     particleSystem.start();
 
     // ── Second particle system for brighter accent stars ──
-    const starAccent = new ParticleSystem("starAccent", 2000, scene);
-    starAccent.particleTexture = new Texture("https://playground.babylonjs.com/textures/flare.png", scene);
+    const starAccent = new ParticleSystem('starAccent', 2000, scene);
+    starAccent.particleTexture = new Texture(
+      'https://playground.babylonjs.com/textures/flare.png',
+      scene
+    );
     const accentEmitter = starAccent.createSphereEmitter(EARTH_RADIUS * 4.2, 0);
     starAccent.particleEmitterType = accentEmitter;
     starAccent.emitter = Vector3.Zero();
-    starAccent.color1 = new Color4(0.95, 0.85, 1.0, 1.0);   // bright white-lavender
+    starAccent.color1 = new Color4(0.95, 0.85, 1.0, 1.0); // bright white-lavender
     starAccent.color2 = new Color4(0.8, 0.6, 1.0, 0.85);
-    starAccent.colorDead = Color4.FromHexString(ART.void + "00");
+    starAccent.colorDead = Color4.FromHexString(ART.void + '00');
     starAccent.minSize = 0.15;
     starAccent.maxSize = 0.55;
     starAccent.minLifeTime = 8.0;
@@ -2845,15 +3702,26 @@ export default function App() {
     starAccent.start();
 
     // Glowing Pillars (Nodes)
-    const alertNodes = new globalThis.Map<string, { pillar: any; material: StandardMaterial; baseColor: Color3 }>();
+    const alertNodes = new globalThis.Map<
+      string,
+      { pillar: any; material: StandardMaterial; baseColor: Color3 }
+    >();
     MOCK_DATACENTERS.forEach((dc, i) => {
-      const pos = latLonToVector3(dc.coordinates[1], dc.coordinates[0], EARTH_RADIUS);
+      const pos = latLonToVector3(
+        dc.coordinates[1],
+        dc.coordinates[0],
+        EARTH_RADIUS
+      );
       const height = 0.15; // uniform small pillars
-      const pillar = MeshBuilder.CreateCylinder(`dc-${i}`, { diameter: 0.02, height }, scene);
+      const pillar = MeshBuilder.CreateCylinder(
+        `dc-${i}`,
+        { diameter: 0.02, height },
+        scene
+      );
       pillar.position = pos.add(pos.normalizeToNew().scale(height / 2));
-      pillar.lookAt(Vector3.Zero()); 
+      pillar.lookAt(Vector3.Zero());
       pillar.rotate(Vector3.Right(), Math.PI / 2);
-      
+
       const mat = new StandardMaterial(`dcMat-${i}`, scene);
       mat.emissiveColor = getArtColor3(dc.status);
       mat.disableLighting = true;
@@ -2874,21 +3742,28 @@ export default function App() {
       });
       if (points.length < 2) return;
 
-      let isOutage = cable.name === 'SMW4 main'; 
-      let isProtection = cable.isProtection || cable.name.toLowerCase().includes('protection');
-      
+      let isOutage = cable.name === 'SMW4 main';
+      let isProtection =
+        cable.isProtection || cable.name.toLowerCase().includes('protection');
+
       // Extremely thin tubes
-      let tubeRadius = isOutage ? 0.015 : (isProtection ? 0.002 : 0.005);
-      
-      const tube = MeshBuilder.CreateTube(`cable-${i}`, { path: points, radius: tubeRadius, updatable: false }, scene);
+      let tubeRadius = isOutage ? 0.015 : isProtection ? 0.002 : 0.005;
+
+      const tube = MeshBuilder.CreateTube(
+        `cable-${i}`,
+        { path: points, radius: tubeRadius, updatable: false },
+        scene
+      );
       const mat = new StandardMaterial(`cableMat-${i}`, scene);
-      
+
       if (isOutage) {
         mat.emissiveColor = getArtColor3('critical', true);
       } else {
-        mat.emissiveColor = isProtection ? Color3.FromHexString('#333333') : getArtColor3('normal', true);
+        mat.emissiveColor = isProtection
+          ? Color3.FromHexString('#333333')
+          : getArtColor3('normal', true);
       }
-      
+
       mat.disableLighting = true;
       if (isProtection && !isOutage) mat.alpha = 0.3;
       tube.material = mat;
@@ -2897,7 +3772,9 @@ export default function App() {
         let alpha = 0;
         scene.onBeforeRenderObservable.add(() => {
           alpha += 0.05;
-          mat.emissiveColor = Color3.FromHexString(ART.crimson).scale(0.4 + Math.abs(Math.sin(alpha)) * 0.6);
+          mat.emissiveColor = Color3.FromHexString(ART.crimson).scale(
+            0.4 + Math.abs(Math.sin(alpha)) * 0.6
+          );
         });
         gl.addIncludedOnlyMesh(tube);
       } else if (!isProtection) {
@@ -2907,8 +3784,12 @@ export default function App() {
     });
 
     // Marker for Focus Points
-    const marker = MeshBuilder.CreateSphere("focusMarker", { diameter: 0.15 }, scene);
-    const markerMat = new StandardMaterial("markerMat", scene);
+    const marker = MeshBuilder.CreateSphere(
+      'focusMarker',
+      { diameter: 0.15 },
+      scene
+    );
+    const markerMat = new StandardMaterial('markerMat', scene);
     markerMat.emissiveColor = Color3.FromHexString(ART.crimson);
     markerMat.disableLighting = true;
     marker.material = markerMat;
@@ -2925,18 +3806,19 @@ export default function App() {
     // Map each alert to its geographic coordinates (so the Earth can fly
     // to the active alert in ALARM_EVENT mode). Uses the alert's explicit
     // lon/lat if provided, otherwise falls back to its node coordinates.
-    const ALERT_NODE_COORDS: Record<string, { lon: number; lat: number }> = ALERT_SEQUENCE.reduce(
-      (acc, item) => {
+    const ALERT_NODE_COORDS: Record<string, { lon: number; lat: number }> =
+      ALERT_SEQUENCE.reduce((acc, item) => {
         acc[item.nodeId] = { lon: item.lon, lat: item.lat };
         return acc;
-      },
-      {} as Record<string, { lon: number; lat: number }>
-    );
+      }, {} as Record<string, { lon: number; lat: number }>);
 
-    const ACTIVE_ALERT_NODES = ALERT_SEQUENCE.reduce<Record<string, string>>((acc, item) => {
-      acc[item.nodeId] = item.severity;
-      return acc;
-    }, {});
+    const ACTIVE_ALERT_NODES = ALERT_SEQUENCE.reduce<Record<string, string>>(
+      (acc, item) => {
+        acc[item.nodeId] = item.severity;
+        return acc;
+      },
+      {}
+    );
 
     // Joystick Tracker
     let lastLon = 0;
@@ -2952,7 +3834,9 @@ export default function App() {
           const highlight = getArtColor3(severity.toLowerCase());
           if (nodeId === currentAlert.nodeId) {
             const blinkOn = Math.sin(alertAnimationTick * 2.8) > 0;
-            material.emissiveColor = blinkOn ? highlight.scale(1.8) : highlight.scale(0.18);
+            material.emissiveColor = blinkOn
+              ? highlight.scale(1.8)
+              : highlight.scale(0.18);
           } else {
             material.emissiveColor = highlight.scale(0.22);
           }
@@ -2966,14 +3850,14 @@ export default function App() {
 
         const globalRadius = EARTH_RADIUS * 2.5;
         camera.radius += (globalRadius - camera.radius) * 0.04;
-        camera.beta += (((Math.PI / 2.15) - camera.beta) * 0.02);
+        camera.beta += (Math.PI / 2.15 - camera.beta) * 0.02;
         camera.alpha -= 0.0038;
 
         let lon = -((camera.alpha * 180) / Math.PI) - 90;
         lon = lon % 360;
         if (lon > 180) lon -= 360;
         if (lon < -180) lon += 360;
-          // let lat = 90 - ((camera.beta * 180) / Math.PI);
+        // let lat = 90 - ((camera.beta * 180) / Math.PI);
         if (Math.abs(lon - lastLon) > 0.5) {
           lastLon = lon;
           // setTargetLonLat({ lon, lat });
@@ -2984,20 +3868,27 @@ export default function App() {
         let target: { lon: number; lat: number } | undefined;
         if (story === 'ALARM_EVENT') {
           const alertNodeId = activeAlertRef.current?.nodeId;
-          target = (alertNodeId && ALERT_NODE_COORDS[alertNodeId]) || TARGET_LOCATIONS.ALARM_EVENT;
+          target =
+            (alertNodeId && ALERT_NODE_COORDS[alertNodeId]) ||
+            TARGET_LOCATIONS.ALARM_EVENT;
         } else {
           target = TARGET_LOCATIONS[story as keyof typeof TARGET_LOCATIONS];
         }
         if (target) {
           marker.isVisible = true;
-          marker.position = latLonToVector3(target.lat, target.lon, EARTH_RADIUS + 0.05);
+          marker.position = latLonToVector3(
+            target.lat,
+            target.lon,
+            EARTH_RADIUS + 0.05
+          );
 
           pulseAlpha += 0.1;
           const scale = 1 + Math.sin(pulseAlpha) * 0.5;
           marker.scaling.set(scale, scale, scale);
 
           // Zoom in close to alarm point (ALARM uses a larger radius so the globe is smaller)
-          const focusRadius = story === 'ALARM_EVENT' ? EARTH_RADIUS * 1.9 : EARTH_RADIUS * 1.55;
+          const focusRadius =
+            story === 'ALARM_EVENT' ? EARTH_RADIUS * 1.9 : EARTH_RADIUS * 1.55;
           camera.radius += (focusRadius - camera.radius) * 0.04;
 
           // Camera look-at offset: for ALARM_EVENT, shift camera target to the east
@@ -3013,8 +3904,10 @@ export default function App() {
           let targetBetaRad = ((90 - cameraLat) * Math.PI) / 180;
 
           // Normalize alpha for shortest path
-          while (targetAlphaRad - camera.alpha > Math.PI) targetAlphaRad -= Math.PI * 2;
-          while (targetAlphaRad - camera.alpha < -Math.PI) targetAlphaRad += Math.PI * 2;
+          while (targetAlphaRad - camera.alpha > Math.PI)
+            targetAlphaRad -= Math.PI * 2;
+          while (targetAlphaRad - camera.alpha < -Math.PI)
+            targetAlphaRad += Math.PI * 2;
 
           camera.alpha += (targetAlphaRad - camera.alpha) * 0.05;
           camera.beta += (targetBetaRad - camera.beta) * 0.05;
@@ -3025,7 +3918,11 @@ export default function App() {
     engine.runRenderLoop(() => scene.render());
     const resizeObserver = new ResizeObserver(() => engine.resize());
     resizeObserver.observe(canvasRef.current);
-    return () => { resizeObserver.disconnect(); scene.dispose(); engine.dispose(); };
+    return () => {
+      resizeObserver.disconnect();
+      scene.dispose();
+      engine.dispose();
+    };
   }, [dataLoaded, cablesData]);
 
   useEffect(() => {
@@ -3035,13 +3932,13 @@ export default function App() {
     if (currentStory === 'GLOBAL') {
       zoom = 3.5;
       pitch = 0;
-      setViewState2D(prev => ({
+      setViewState2D((prev) => ({
         ...prev,
         longitude: 45,
         latitude: 24,
         zoom,
         pitch,
-        transitionDuration: 1500
+        transitionDuration: 1500,
       }));
     } else if (currentStory === 'ALARM_EVENT') {
       // Use the imperative flyTo so the map arcs between alert regions,
@@ -3059,30 +3956,34 @@ export default function App() {
           essential: true,
         });
       } else {
-        setViewState2D(prev => ({
+        setViewState2D((prev) => ({
           ...prev,
           longitude: activeAlert.lon,
           latitude: activeAlert.lat,
           zoom: 3.8,
           pitch: 35,
-          transitionDuration: 3000
+          transitionDuration: 3000,
         }));
       }
     } else {
       let target = { lon: 40, lat: 25 };
       if (currentStory === 'CABLE_FOCUS') {
-        zoom = 4.2; pitch = 20; target = { lon: 35.0, lat: 25.0 };
+        zoom = 4.2;
+        pitch = 20;
+        target = { lon: 35.0, lat: 25.0 };
       } else if (currentStory === 'DC_FOCUS') {
-        zoom = 5.0; pitch = 35; target = { lon: 46.884, lat: 24.829 };
+        zoom = 5.0;
+        pitch = 35;
+        target = { lon: 46.884, lat: 24.829 };
       }
 
-      setViewState2D(prev => ({
+      setViewState2D((prev) => ({
         ...prev,
         longitude: target.lon,
         latitude: target.lat,
         zoom,
         pitch,
-        transitionDuration: 1500
+        transitionDuration: 1500,
       }));
     }
   }, [currentStory, activeAlert.lon, activeAlert.lat]);
@@ -3097,7 +3998,7 @@ export default function App() {
       filled: true,
       lineWidthMinPixels: 1,
       getLineColor: [79, 0, 140, 150], // ART.border (opacity reduced to make base map less intrusive)
-      getFillColor: [85, 35, 130, 255],  // Brighter purple for the base map landmass
+      getFillColor: [85, 35, 130, 255], // Brighter purple for the base map landmass
     }),
 
     // Hairline Constellation Data
@@ -3106,10 +4007,10 @@ export default function App() {
       data: cablesData,
       pickable: true,
       widthScale: 1,
-      widthMinPixels: currentStory === 'CABLE_FOCUS' ? 2 : 1, // Thicker in CABLE_FOCUS
-      widthMaxPixels: currentStory === 'CABLE_FOCUS' ? 4 : 2,
-      getPath: d => d.coordinates,
-      getColor: d => {
+      widthMinPixels: currentStory === 'CABLE_FOCUS' ? 3 : 2, // keep global cables clearly visible
+      widthMaxPixels: currentStory === 'CABLE_FOCUS' ? 6 : 3,
+      getPath: (d) => d.coordinates,
+      getColor: (d) => {
         if (currentStory === 'CABLE_FOCUS') {
           if (d.name === 'SMW4 main') return getArtColorRGB('critical');
           return [165, 78, 225, 255]; // Highlight all cables in purple
@@ -3118,18 +4019,20 @@ export default function App() {
           return [255, 255, 255, 30]; // Dim cables in DC_FOCUS
         }
         if (d.name === 'SMW4 main') return getArtColorRGB('critical');
-        if (d.isProtection || d.name.toLowerCase().includes('protection')) return [142, 154, 160, 255]; // Silver
-        return [255, 255, 255, 120]; // Ghostly white
+        if (d.isProtection || d.name.toLowerCase().includes('protection'))
+          return [142, 154, 160, 255]; // Silver
+        return [255, 255, 255, 220]; // brighter default network lines
       },
-      getWidth: (d: any) => d.name === 'SMW4 main' ? 2 : 1,
-      getDashArray: (d: any) => (d.isProtection && d.name !== 'SMW4 main') ? [2, 4] : [0, 0],
+      getWidth: (d: any) => (d.name === 'SMW4 main' ? 3 : 1.8),
+      getDashArray: (d: any) =>
+        d.isProtection && d.name !== 'SMW4 main' ? [2, 4] : [0, 0],
       dashJustified: true,
-      extensions: [new PathStyleExtension({dash: true})],
+      extensions: [new PathStyleExtension({ dash: true })],
       updateTriggers: {
         widthMinPixels: [currentStory],
         widthMaxPixels: [currentStory],
-        getColor: [currentStory]
-      }
+        getColor: [currentStory],
+      },
     }),
 
     // Star-like Nodes
@@ -3142,20 +4045,26 @@ export default function App() {
       radiusScale: currentStory === 'DC_FOCUS' ? 12 : 6,
       radiusMinPixels: currentStory === 'DC_FOCUS' ? 3 : 1.5,
       radiusMaxPixels: currentStory === 'DC_FOCUS' ? 6 : 3,
-      getPosition: d => d.geometry.coordinates,
-      getFillColor: currentStory === 'DC_FOCUS' ? [165, 78, 225, 255] : [255, 255, 255, 200], 
+      getPosition: (d) => d.geometry.coordinates,
+      getFillColor:
+        currentStory === 'DC_FOCUS'
+          ? [165, 78, 225, 255]
+          : [255, 255, 255, 200],
       updateTriggers: {
         radiusScale: [currentStory],
         radiusMinPixels: [currentStory],
         radiusMaxPixels: [currentStory],
-        getFillColor: [currentStory]
-      }
+        getFillColor: [currentStory],
+      },
     }),
 
     // Data Flows / Light Beams between nodes in DC FOCUS
     new ArcLayer({
       id: 'arcs-art',
-      data: currentStory === 'DC_FOCUS' || currentStory === 'ALARM_EVENT' ? MOCK_DATACENTERS.filter(d => d.id !== 'RDC103') : [],
+      data:
+        currentStory === 'DC_FOCUS' || currentStory === 'ALARM_EVENT'
+          ? MOCK_DATACENTERS.filter((d) => d.id !== 'RDC103')
+          : [],
       getSourcePosition: () => MOCK_DATACENTERS[0].coordinates, // Riyadh Core as hub
       getTargetPosition: (d: any) => d.coordinates,
       getSourceColor: [165, 78, 225, 255], // Moon Light
@@ -3164,22 +4073,49 @@ export default function App() {
       getHeight: 1.5,
       getTilt: 15,
       updateTriggers: {
-        data: [currentStory]
-      }
-    })
+        data: [currentStory],
+      },
+    }),
   ];
 
-  const TAB_ITEMS: { id: StoryMode, label: string }[] = [
+  const mapStyle = {
+    version: 8,
+    sources: {},
+    layers: [
+      {
+        id: 'background',
+        type: 'background',
+        paint: {
+          'background-color': '#05050F',
+        },
+      },
+    ],
+  } as const;
+
+  const TAB_ITEMS: { id: StoryMode; label: string }[] = [
     { id: 'GLOBAL', label: 'GLOBAL VIEW' },
     { id: 'ALARM_EVENT', label: 'ALERTS' },
   ];
 
-  const CARD_TITLE = 'text-[24px] text-white font-semibold leading-[29px] tracking-[0.01em]';
-  const dateText = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const timeText = `${String(now.getHours()).padStart(2, '0')} : ${String(now.getMinutes()).padStart(2, '0')} : ${String(now.getSeconds()).padStart(2, '0')}`;
+  const CARD_TITLE =
+    'text-[24px] text-white font-semibold leading-[29px] tracking-[0.01em]';
+  const dateText = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+    2,
+    '0'
+  )}-${String(now.getDate()).padStart(2, '0')}`;
+  const timeText = `${String(now.getHours()).padStart(2, '0')} : ${String(
+    now.getMinutes()
+  ).padStart(2, '0')} : ${String(now.getSeconds()).padStart(2, '0')}`;
 
-  const renderRightCardShell = (title: string, body: ReactNode, cardHeightClass: string, extraClass = '') => (
-    <div className={`relative w-full ${cardHeightClass} ${extraClass} overflow-hidden`}>
+  const renderRightCardShell = (
+    title: string,
+    body: ReactNode,
+    cardHeightClass: string,
+    extraClass = ''
+  ) => (
+    <div
+      className={`relative w-full ${cardHeightClass} ${extraClass} overflow-hidden`}
+    >
       <div className="absolute inset-[8px] rounded-[10px] bg-[rgba(20,12,40,0.28)] backdrop-blur-[22px] pointer-events-none" />
       <div
         className="absolute inset-0 pointer-events-none box-border"
@@ -3199,7 +4135,11 @@ export default function App() {
             className="w-[13px] h-[17px] shrink-0 pointer-events-none select-none"
           />
           <div className="whitespace-nowrap text-center">
-            <div className={`${CARD_TITLE} drop-shadow-[0_2px_10px_rgba(255,255,255,0.12)]`}>{title}</div>
+            <div
+              className={`${CARD_TITLE} drop-shadow-[0_2px_10px_rgba(255,255,255,0.12)]`}
+            >
+              {title}
+            </div>
           </div>
           <img
             src={cardTitleArrow}
@@ -3209,9 +4149,15 @@ export default function App() {
         </div>
       </div>
       <div className="absolute left-[18px] right-[18px] top-[58px] h-[7px] flex items-center justify-center pointer-events-none">
-        <img src={cardDivider} alt="" className="w-full max-w-[720px] h-[7px] select-none" />
+        <img
+          src={cardDivider}
+          alt=""
+          className="w-full max-w-[720px] h-[7px] select-none"
+        />
       </div>
-      <div className="absolute left-[24px] right-[24px] top-[79px] bottom-[24px] z-[1]">{body}</div>
+      <div className="absolute left-[24px] right-[24px] top-[79px] bottom-[24px] z-[1]">
+        {body}
+      </div>
     </div>
   );
 
@@ -3219,21 +4165,21 @@ export default function App() {
     label: string,
     value: ReactNode,
     IconComp?: Icon,
-    variant: 'default' | 'coral' | 'orange' = 'default',
+    variant: 'default' | 'coral' | 'orange' = 'default'
   ) => {
     const iconId = label.toLowerCase().replace(/\s+/g, '-');
     const bgSrc =
       variant === 'coral'
         ? metricCardBgCoral
         : variant === 'orange'
-          ? metricCardBgOrange
-          : metricCardBg;
+        ? metricCardBgOrange
+        : metricCardBg;
     const badgePalette =
       variant === 'coral'
         ? METRIC_BADGE_CORAL
         : variant === 'orange'
-          ? METRIC_BADGE_ORANGE
-          : METRIC_BADGE_PURPLE;
+        ? METRIC_BADGE_ORANGE
+        : METRIC_BADGE_PURPLE;
     return (
       <div className="relative w-[940px] h-[200px] ml-auto">
         <div
@@ -3248,10 +4194,20 @@ export default function App() {
         />
         <div className="absolute inset-0 px-[86px] flex items-center justify-between gap-[32px]">
           <div className="flex items-center gap-[28px] min-w-0">
-            {IconComp && <MetricIconBadge IconComp={IconComp} id={iconId} palette={badgePalette} />}
-            <div className="text-[44px] text-white font-normal leading-[1.05]">{label}</div>
+            {IconComp && (
+              <MetricIconBadge
+                IconComp={IconComp}
+                id={iconId}
+                palette={badgePalette}
+              />
+            )}
+            <div className="text-[44px] text-white font-normal leading-[1.05]">
+              {label}
+            </div>
           </div>
-          <div className="text-white text-[76px] font-medium whitespace-nowrap shrink-0">{value}</div>
+          <div className="text-white text-[76px] font-medium whitespace-nowrap shrink-0">
+            {value}
+          </div>
         </div>
       </div>
     );
@@ -3259,12 +4215,11 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen bg-[#05050F] flex items-center justify-center overflow-hidden font-montserrat">
-      
-      <div 
+      <div
         className="flex bg-[#05050F] overflow-hidden text-white relative"
         style={{
           width: '7680px',
-          height: '1350px', 
+          height: '1350px',
           position: 'absolute',
           backgroundImage: isP1AlarmTone
             ? `
@@ -3274,40 +4229,53 @@ export default function App() {
             `
             : 'none',
           boxShadow: isP1AlarmTone
-            ? `0 0 40px ${withAlpha(BRAND.coral, 0.32)}, inset 0 0 140px ${withAlpha(BRAND.coral, 0.12)}`
+            ? `0 0 40px ${withAlpha(
+                BRAND.coral,
+                0.32
+              )}, inset 0 0 140px ${withAlpha(BRAND.coral, 0.12)}`
             : 'none',
           transform: `scale(${scale})`,
           transformOrigin: 'top left', // Scale from the top left corner
           top: '50%',
           left: '50%',
-          marginTop: `-${1350 * scale / 2}px`, // Manually center it taking scale into account
-          marginLeft: `-${7680 * scale / 2}px`, // Manually center it taking scale into account
+          marginTop: `-${(1350 * scale) / 2}px`, // Manually center it taking scale into account
+          marginLeft: `-${(7680 * scale) / 2}px`, // Manually center it taking scale into account
         }}
       >
         {/* Left gutter aligned with Figma */}
-        <div className="h-full shrink-0 border-r border-white/10 relative" style={{ width: '540px' }} />
+        <div
+          className="h-full shrink-0 border-r border-white/10 relative"
+          style={{ width: '540px' }}
+        />
 
         {/* ========================================================= */}
         {/* ART PIECE 1: THE MONOLITH (3D GLOBE)                      */}
         {/* ========================================================= */}
-        <div 
+        <div
           className="h-full relative shrink-0 transition-all duration-700 ease-in-out z-10"
           style={{ width: config.earthWidth, transform: 'translateX(430px)' }}
         >
           {/* Radial backdrop glow — lighter halo behind earth */}
           <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center">
-            <div style={{
-              width: '900px', height: '900px', borderRadius: '50%',
-              background: 'radial-gradient(ellipse at 50% 40%, rgba(90,20,160,0.38) 0%, rgba(55,12,110,0.22) 38%, rgba(20,5,55,0.10) 62%, transparent 75%)',
-              filter: 'blur(18px)',
-            }} />
+            <div
+              style={{
+                width: '900px',
+                height: '900px',
+                borderRadius: '50%',
+                background:
+                  'radial-gradient(ellipse at 50% 40%, rgba(90,20,160,0.38) 0%, rgba(55,12,110,0.22) 38%, rgba(20,5,55,0.10) 62%, transparent 75%)',
+                filter: 'blur(18px)',
+              }}
+            />
           </div>
 
           <div
             className="absolute inset-0 overflow-hidden pointer-events-auto"
             style={{
-              maskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 82%, transparent 100%)',
-              WebkitMaskImage: '-webkit-linear-gradient(left, transparent 0%, black 12%, black 82%, transparent 100%)',
+              maskImage:
+                'linear-gradient(to right, transparent 0%, black 12%, black 82%, transparent 100%)',
+              WebkitMaskImage:
+                '-webkit-linear-gradient(left, transparent 0%, black 12%, black 82%, transparent 100%)',
             }}
           >
             <WidgetHost
@@ -3321,7 +4289,7 @@ export default function App() {
               }}
             />
           </div>
-          
+
           {/* Aesthetic Center Target / Crosshair */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 opacity-20">
             <div className="w-[300px] h-[300px] border border-[#333] rounded-full transition-all duration-700"></div>
@@ -3334,25 +4302,33 @@ export default function App() {
         {/* ========================================================= */}
         {/* ART PIECE 2: THE CONSTELLATION MAP (2D RIGHT)             */}
         {/* ========================================================= */}
-        <div 
+        <div
           className="h-full relative shrink-0 transition-all duration-700 ease-in-out z-10"
           style={{
             width: config.mapWidth,
-            maskImage: 'linear-gradient(to right, transparent 0%, black 20%, black 80%, transparent 100%)',
-            WebkitMaskImage: '-webkit-linear-gradient(left, transparent 0%, black 20%, black 80%, transparent 100%)'
+            maskImage:
+              'linear-gradient(to right, transparent 0%, black 20%, black 80%, transparent 100%)',
+            WebkitMaskImage:
+              '-webkit-linear-gradient(left, transparent 0%, black 20%, black 80%, transparent 100%)',
           }}
         >
           {/* Subtle Grid Background for that "Blueprint" feel */}
-          <div className="absolute inset-0 z-0 opacity-10" style={{
-            backgroundImage: 'linear-gradient(#A54EE1 1px, transparent 1px), linear-gradient(90deg, #A54EE1 1px, transparent 1px)',
-            backgroundSize: '40px 40px'
-          }}></div>
+          <div
+            className="absolute inset-0 z-0 opacity-10"
+            style={{
+              backgroundImage:
+                'linear-gradient(#A54EE1 1px, transparent 1px), linear-gradient(90deg, #A54EE1 1px, transparent 1px)',
+              backgroundSize: '40px 40px',
+            }}
+          ></div>
 
           <div
             className="absolute inset-0 z-[1] overflow-hidden pointer-events-auto"
             style={{
-              maskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%)',
-              WebkitMaskImage: '-webkit-linear-gradient(left, transparent 0%, black 12%, black 88%, transparent 100%)',
+              maskImage:
+                'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%)',
+              WebkitMaskImage:
+                '-webkit-linear-gradient(left, transparent 0%, black 12%, black 88%, transparent 100%)',
             }}
           >
             <WidgetHost
@@ -3373,15 +4349,26 @@ export default function App() {
           {/* Minimalist Map Label (Top Right) */}
           <div className="absolute top-10 right-10 pointer-events-none z-10 text-right opacity-0">
             {/* 隐藏之前的Cartography 01 */}
-            <h3 className="font-art-title text-[48px] tracking-[0.2em] uppercase text-white transition-opacity">Cartography 01</h3>
-            <div className="font-art-mono text-[24px] text-[#555] tracking-[0.3em] mt-2">PLANAR PROJECTION</div>
+            <h3 className="font-art-title text-[48px] tracking-[0.2em] uppercase text-white transition-opacity">
+              Cartography 01
+            </h3>
+            <div className="font-art-mono text-[24px] text-[#555] tracking-[0.3em] mt-2">
+              PLANAR PROJECTION
+            </div>
           </div>
         </div>
 
         {/* ========================================================= */}
         {/* CENTER ALERT POPUP                                          */}
         {/* ========================================================= */}
-        <div className={`absolute left-[50%] top-[54%] z-[70] ${currentStory === 'ALARM_EVENT' ? 'pointer-events-none' : 'opacity-0 pointer-events-none'}`} style={{ transform: 'translate(-50%, -50%)' }}>
+        <div
+          className={`absolute left-[50%] top-[54%] z-[70] ${
+            currentStory === 'ALARM_EVENT'
+              ? 'pointer-events-none'
+              : 'opacity-0 pointer-events-none'
+          }`}
+          style={{ transform: 'translate(-50%, -50%)' }}
+        >
           <div
             className={`relative w-[1020px] h-[960px] transition-all duration-[800ms] ease-[cubic-bezier(0.16,1,0.3,1)] origin-[0%_50%] ${
               alertPopupPhase === 'hidden'
@@ -3392,7 +4379,9 @@ export default function App() {
             <div className="absolute inset-0">
               {renderAlertCardContent(
                 activeAlert,
-                MOCK_TICKETS.find(ticketItem => ticketItem.id === activeAlert.ticketId),
+                MOCK_TICKETS.find(
+                  (ticketItem) => ticketItem.id === activeAlert.ticketId
+                ),
                 activeAlert.severity === 'CRITICAL'
               )}
             </div>
@@ -3417,61 +4406,135 @@ export default function App() {
         </div>
         {/* 霓虹折角 — smooth sweep via animated gradient stop offsets (no dasharray gap) */}
         <div className="absolute left-[600px] top-[19px] z-50 pointer-events-none">
-          <svg width="784" height="100" viewBox="-4 -5 784 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg
+            width="784"
+            height="100"
+            viewBox="-4 -5 784 100"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
             <defs>
               {/* ── Static base: vivid throughout, peak at corner (~92%) ── */}
-              <linearGradient id="nBase" x1="0" y1="81" x2="768" y2="0" gradientUnits="userSpaceOnUse">
-                <stop offset="0%"   stopColor="#7B2FBE" stopOpacity="0"/>
-                <stop offset="15%"  stopColor="#8B35D0" stopOpacity="0.55"/>
-                <stop offset="45%"  stopColor="#9D40E0" stopOpacity="0.7"/>
-                <stop offset="72%"  stopColor="#B555F5" stopOpacity="0.82"/>
-                <stop offset="85%"  stopColor="#D068FF" stopOpacity="0.93"/>
-                <stop offset="92%"  stopColor="#E87FFF" stopOpacity="1"/>
-                <stop offset="97%"  stopColor="#C060F0" stopOpacity="0.65"/>
-                <stop offset="100%" stopColor="#9030D0" stopOpacity="0"/>
+              <linearGradient
+                id="nBase"
+                x1="0"
+                y1="81"
+                x2="768"
+                y2="0"
+                gradientUnits="userSpaceOnUse"
+              >
+                <stop offset="0%" stopColor="#7B2FBE" stopOpacity="0" />
+                <stop offset="15%" stopColor="#8B35D0" stopOpacity="0.55" />
+                <stop offset="45%" stopColor="#9D40E0" stopOpacity="0.7" />
+                <stop offset="72%" stopColor="#B555F5" stopOpacity="0.82" />
+                <stop offset="85%" stopColor="#D068FF" stopOpacity="0.93" />
+                <stop offset="92%" stopColor="#E87FFF" stopOpacity="1" />
+                <stop offset="97%" stopColor="#C060F0" stopOpacity="0.65" />
+                <stop offset="100%" stopColor="#9030D0" stopOpacity="0" />
               </linearGradient>
 
               {/* ── Animated sweep: bright band sliding along gradient ── */}
-              <linearGradient id="nSweep" x1="0" y1="81" x2="768" y2="0" gradientUnits="userSpaceOnUse">
+              <linearGradient
+                id="nSweep"
+                x1="0"
+                y1="81"
+                x2="768"
+                y2="0"
+                gradientUnits="userSpaceOnUse"
+              >
                 <stop stopColor="#E8AAFF" stopOpacity="0">
-                  <animate attributeName="offset" values="-0.25;1.05" dur="3s" repeatCount="indefinite" calcMode="linear"/>
+                  <animate
+                    attributeName="offset"
+                    values="-0.25;1.05"
+                    dur="3s"
+                    repeatCount="indefinite"
+                    calcMode="linear"
+                  />
                 </stop>
                 <stop stopColor="#FFFFFF" stopOpacity="1">
-                  <animate attributeName="offset" values="-0.15;1.15" dur="3s" repeatCount="indefinite" calcMode="linear"/>
+                  <animate
+                    attributeName="offset"
+                    values="-0.15;1.15"
+                    dur="3s"
+                    repeatCount="indefinite"
+                    calcMode="linear"
+                  />
                 </stop>
                 <stop stopColor="#E8AAFF" stopOpacity="0">
-                  <animate attributeName="offset" values="-0.05;1.25" dur="3s" repeatCount="indefinite" calcMode="linear"/>
+                  <animate
+                    attributeName="offset"
+                    values="-0.05;1.25"
+                    dur="3s"
+                    repeatCount="indefinite"
+                    calcMode="linear"
+                  />
                 </stop>
               </linearGradient>
 
               {/* ── Filters ── */}
               <filter id="fBase" x="-6%" y="-80%" width="112%" height="260%">
-                <feGaussianBlur stdDeviation="7"/>
+                <feGaussianBlur stdDeviation="7" />
               </filter>
-              <filter id="fSweepGlow" x="-8%" y="-120%" width="116%" height="340%">
-                <feGaussianBlur stdDeviation="10"/>
+              <filter
+                id="fSweepGlow"
+                x="-8%"
+                y="-120%"
+                width="116%"
+                height="340%"
+              >
+                <feGaussianBlur stdDeviation="10" />
               </filter>
-              <filter id="fSweepCore" x="-4%" y="-40%" width="108%" height="180%">
-                <feGaussianBlur stdDeviation="2"/>
+              <filter
+                id="fSweepCore"
+                x="-4%"
+                y="-40%"
+                width="108%"
+                height="180%"
+              >
+                <feGaussianBlur stdDeviation="2" />
               </filter>
             </defs>
 
             {/* ── Layer 1: static ambient tube glow ── */}
-            <path d="M0,81 L713.786,81 C721.624,81 728.81,77.635 732.422,70.678 L768,0"
-              stroke="url(#nBase)" strokeWidth="10" strokeLinecap="round" fill="none"
-              filter="url(#fBase)" opacity="0.85"/>
+            <path
+              d="M0,81 L713.786,81 C721.624,81 728.81,77.635 732.422,70.678 L768,0"
+              stroke="url(#nBase)"
+              strokeWidth="10"
+              strokeLinecap="round"
+              fill="none"
+              filter="url(#fBase)"
+              opacity="0.85"
+            />
             {/* ── Layer 2: static sharp hairline ── */}
-            <path d="M0,81 L713.786,81 C721.624,81 728.81,77.635 732.422,70.678 L768,0"
-              stroke="url(#nBase)" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="1"/>
+            <path
+              d="M0,81 L713.786,81 C721.624,81 728.81,77.635 732.422,70.678 L768,0"
+              stroke="url(#nBase)"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              fill="none"
+              opacity="1"
+            />
 
             {/* ── Layer 3: sweep — wide soft glow ── */}
-            <path d="M0,81 L713.786,81 C721.624,81 728.81,77.635 732.422,70.678 L768,0"
-              stroke="url(#nSweep)" strokeWidth="10" strokeLinecap="round" fill="none"
-              filter="url(#fSweepGlow)" opacity="0.6"/>
+            <path
+              d="M0,81 L713.786,81 C721.624,81 728.81,77.635 732.422,70.678 L768,0"
+              stroke="url(#nSweep)"
+              strokeWidth="10"
+              strokeLinecap="round"
+              fill="none"
+              filter="url(#fSweepGlow)"
+              opacity="0.6"
+            />
             {/* ── Layer 4: sweep — tight bright core ── */}
-            <path d="M0,81 L713.786,81 C721.624,81 728.81,77.635 732.422,70.678 L768,0"
-              stroke="url(#nSweep)" strokeWidth="1.5" strokeLinecap="round" fill="none"
-              filter="url(#fSweepCore)" opacity="1"/>
+            <path
+              d="M0,81 L713.786,81 C721.624,81 728.81,77.635 732.422,70.678 L768,0"
+              stroke="url(#nSweep)"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              fill="none"
+              filter="url(#fSweepCore)"
+              opacity="1"
+            />
           </svg>
         </div>
         {/* Global / Alerts rail */}
@@ -3479,7 +4542,9 @@ export default function App() {
           <div className="absolute left-0 top-[0px] w-[4px] h-[450px] bg-[#B441E8]/20" />
           <div
             className="absolute left-0 w-[4px] h-[225px] bg-[#8150D7] transition-transform duration-500"
-            style={{ transform: `translateY(${currentStory === 'GLOBAL' ? 0 : 225}px)` }}
+            style={{
+              transform: `translateY(${currentStory === 'GLOBAL' ? 0 : 225}px)`,
+            }}
           />
           <div className="ml-[50px] mt-[93px] flex flex-col gap-[185px]">
             {TAB_ITEMS.map((tab) => {
@@ -3489,7 +4554,9 @@ export default function App() {
                   key={tab.id}
                   onClick={() => setCurrentStory(tab.id)}
                   className={`text-left text-[40px] font-medium leading-none tracking-normal transition-colors ${
-                    isActive ? 'text-white drop-shadow-[0_2px_7.3px_rgba(255,255,255,0.5)]' : 'text-[#DDDFE280]'
+                    isActive
+                      ? 'text-white drop-shadow-[0_2px_7.3px_rgba(255,255,255,0.5)]'
+                      : 'text-[#DDDFE280]'
                   }`}
                 >
                   {tab.label}
@@ -3502,42 +4569,105 @@ export default function App() {
         {/* ========================================================= */}
         {/* DATA CARDS (LEFT OF EARTH & RIGHT OF MAP)                 */}
         {/* ========================================================= */}
-        
+
         {/* --- LEFT CARD --- */}
-        <div className={`absolute top-1/2 left-[660px] w-[900px] z-40 transition-all duration-700 ease-in-out pointer-events-none flex flex-col ${config.leftCard ? 'opacity-100 translate-x-0 -translate-y-1/2' : 'opacity-0 -translate-x-10 -translate-y-1/2'}`}>
-            <div className="w-full pointer-events-auto flex flex-col gap-0">
-                
-                {config.leftCard === 'globalLeft' && (
-                  <div className="flex flex-col gap-[40px]">
-                    {renderLeftMetricCard('Network Count', <AnimatedNumber value={124} />, Network)}
-                    {renderLeftMetricCard('Countries Covered', <AnimatedNumber value={32} />, Globe)}
-                    {renderLeftMetricCard('Total PoPs', <AnimatedNumber value={45} />, MapPin)}
-                    {renderLeftMetricCard('Data Center Count', <AnimatedNumber value={86} />, Database)}
-                  </div>
+        <div
+          className={`absolute top-1/2 left-[660px] w-[900px] z-40 transition-all duration-700 ease-in-out pointer-events-none flex flex-col ${
+            config.leftCard
+              ? 'opacity-100 translate-x-0 -translate-y-1/2'
+              : 'opacity-0 -translate-x-10 -translate-y-1/2'
+          }`}
+        >
+          <div className="w-full pointer-events-auto flex flex-col gap-0">
+            {config.leftCard === 'globalLeft' && (
+              <div className="flex flex-col gap-[40px]">
+                {renderLeftMetricCard(
+                  'Network Count',
+                  <AnimatedNumber value={124} />,
+                  Network
                 )}
+                {renderLeftMetricCard(
+                  'Countries Covered',
+                  <AnimatedNumber value={32} />,
+                  Globe
+                )}
+                {renderLeftMetricCard(
+                  'Total PoPs',
+                  <AnimatedNumber value={45} />,
+                  MapPin
+                )}
+                {renderLeftMetricCard(
+                  'Data Center Count',
+                  <AnimatedNumber value={86} />,
+                  Database
+                )}
+              </div>
+            )}
 
-                {config.leftCard === 'cableEarthStats' && (
-                  <div className="flex flex-col gap-[40px]">
-                    {renderLeftMetricCard('Total Networks', <AnimatedNumber value={124} />, Network)}
-                    {renderLeftMetricCard('Total Length', <span className="text-[#A54EE1]"><AnimatedNumber value={1.2} />M <span className="text-[32px]">km</span></span>, Ruler)}
-                  </div>
+            {config.leftCard === 'cableEarthStats' && (
+              <div className="flex flex-col gap-[40px]">
+                {renderLeftMetricCard(
+                  'Total Networks',
+                  <AnimatedNumber value={124} />,
+                  Network
                 )}
+                {renderLeftMetricCard(
+                  'Total Length',
+                  <span className="text-[#A54EE1]">
+                    <AnimatedNumber value={1.2} />M{' '}
+                    <span className="text-[32px]">km</span>
+                  </span>,
+                  Ruler
+                )}
+              </div>
+            )}
 
-                {config.leftCard === 'dcEarthStats' && (
-                  <div className="flex flex-col gap-[40px]">
-                    {renderLeftMetricCard('Active PoPs', <AnimatedNumber value={45} />, MapPin)}
-                    {renderLeftMetricCard('Global Avg PUE', <span className="text-[#A54EE1]"><AnimatedNumber value={1.24} /></span>, Lightning)}
-                  </div>
+            {config.leftCard === 'dcEarthStats' && (
+              <div className="flex flex-col gap-[40px]">
+                {renderLeftMetricCard(
+                  'Active PoPs',
+                  <AnimatedNumber value={45} />,
+                  MapPin
                 )}
+                {renderLeftMetricCard(
+                  'Global Avg PUE',
+                  <span className="text-[#A54EE1]">
+                    <AnimatedNumber value={1.24} />
+                  </span>,
+                  Lightning
+                )}
+              </div>
+            )}
 
-                {config.leftCard === 'alarmEarthStats' && (
-                  <div className="flex flex-col gap-[40px]">
-                    {renderLeftMetricCard('Outage Capacity', <span className="inline-flex items-baseline gap-[10px]"><AnimatedNumber value={842} /><span className="text-[32px] font-light">Gbps</span></span>, Network)}
-                    {renderLeftMetricCard('Critical', <span className="text-[#FF375E]"><AnimatedNumber value={alarmSeverityCounts.critical} /></span>, Warning, 'coral')}
-                    {renderLeftMetricCard('Warning', <span className="text-[#FF5F1D]"><AnimatedNumber value={alarmSeverityCounts.warning} /></span>, Warning, 'orange')}
-                  </div>
+            {config.leftCard === 'alarmEarthStats' && (
+              <div className="flex flex-col gap-[40px]">
+                {renderLeftMetricCard(
+                  'Outage Capacity',
+                  <span className="inline-flex items-baseline gap-[10px]">
+                    <AnimatedNumber value={842} />
+                    <span className="text-[32px] font-light">Gbps</span>
+                  </span>,
+                  Network
                 )}
-            </div>
+                {renderLeftMetricCard(
+                  'Critical',
+                  <span className="text-[#FF375E]">
+                    <AnimatedNumber value={1} />
+                  </span>,
+                  Warning,
+                  'coral'
+                )}
+                {renderLeftMetricCard(
+                  'Warning',
+                  <span className="text-[#FF5F1D]">
+                    <AnimatedNumber value={2} />
+                  </span>,
+                  Warning,
+                  'orange'
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* --- CENTER OVERLAY (Global view only) --- */}
@@ -3587,8 +4717,12 @@ export default function App() {
                 <div className="flex flex-col h-full justify-between gap-[18px] px-[26px]">
                   <div className="flex items-baseline justify-between">
                     <div className="flex items-baseline gap-[16px]">
-                      <span className="font-montserrat text-[68px] font-semibold text-white tabular-nums leading-none">27</span>
-                      <span className="font-art-mono text-[18px] uppercase tracking-[0.2em] text-[#8E9AA0]">events / day</span>
+                      <span className="font-montserrat text-[68px] font-semibold text-white tabular-nums leading-none">
+                        27
+                      </span>
+                      <span className="font-art-mono text-[18px] uppercase tracking-[0.2em] text-[#8E9AA0]">
+                        events / day
+                      </span>
                     </div>
                     <div className="flex items-center gap-[8px] font-art-mono text-[18px] uppercase tracking-[0.2em] text-[#FF375E]">
                       <span className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10px] border-b-[#FF375E]" />
@@ -3597,13 +4731,21 @@ export default function App() {
                   </div>
                   {/* Tiny sparkline-like bars */}
                   <div className="flex items-end gap-[6px] h-[110px]">
-                    {[30, 42, 28, 55, 38, 62, 48, 72, 40, 58, 66, 88, 70, 52, 80, 95, 74, 58, 62, 70, 55, 82, 66, 90].map((v, i) => (
+                    {[
+                      30, 42, 28, 55, 38, 62, 48, 72, 40, 58, 66, 88, 70, 52,
+                      80, 95, 74, 58, 62, 70, 55, 82, 66, 90,
+                    ].map((v, i) => (
                       <div
                         key={i}
                         className="flex-1 rounded-[2px]"
                         style={{
                           height: `${v}%`,
-                          background: v > 80 ? 'linear-gradient(180deg,#FF375E,#FF375E88)' : v > 55 ? 'linear-gradient(180deg,#A54EE1,#A54EE188)' : 'linear-gradient(180deg,#8E9AA0,#8E9AA088)'
+                          background:
+                            v > 80
+                              ? 'linear-gradient(180deg,#FF375E,#FF375E88)'
+                              : v > 55
+                              ? 'linear-gradient(180deg,#A54EE1,#A54EE188)'
+                              : 'linear-gradient(180deg,#8E9AA0,#8E9AA088)',
                         }}
                       />
                     ))}
@@ -3626,15 +4768,37 @@ export default function App() {
                 'Response Team Activity',
                 <div className="flex flex-col gap-[18px] h-full justify-center px-[26px]">
                   {[
-                    { team: 'NOC · Alpha', role: 'Physical Repair', status: 'DISPATCHED', pct: 72, color: '#FF375E' },
-                    { team: 'NOC · Beta', role: 'Signal Recovery', status: 'ON SITE', pct: 48, color: '#A54EE1' },
-                    { team: 'NOC · Gamma', role: 'Traffic Reroute', status: 'STANDBY', pct: 20, color: '#8E9AA0' },
+                    {
+                      team: 'NOC · Alpha',
+                      role: 'Physical Repair',
+                      status: 'DISPATCHED',
+                      pct: 72,
+                      color: '#FF375E',
+                    },
+                    {
+                      team: 'NOC · Beta',
+                      role: 'Signal Recovery',
+                      status: 'ON SITE',
+                      pct: 48,
+                      color: '#A54EE1',
+                    },
+                    {
+                      team: 'NOC · Gamma',
+                      role: 'Traffic Reroute',
+                      status: 'STANDBY',
+                      pct: 20,
+                      color: '#8E9AA0',
+                    },
                   ].map((t) => (
                     <div key={t.team} className="flex flex-col gap-[8px]">
                       <div className="flex items-center justify-between">
                         <div className="flex items-baseline gap-[14px]">
-                          <span className="font-art-sans font-light text-[24px] text-white tracking-wide">{t.team}</span>
-                          <span className="font-art-mono text-[14px] uppercase tracking-[0.2em] text-[#8E9AA0]">{t.role}</span>
+                          <span className="font-art-sans font-light text-[24px] text-white tracking-wide">
+                            {t.team}
+                          </span>
+                          <span className="font-art-mono text-[14px] uppercase tracking-[0.2em] text-[#8E9AA0]">
+                            {t.role}
+                          </span>
                         </div>
                         <span
                           className="font-art-mono text-[14px] uppercase tracking-[0.25em]"
@@ -3649,7 +4813,7 @@ export default function App() {
                           style={{
                             width: `${t.pct}%`,
                             background: `linear-gradient(90deg, ${t.color}, ${t.color}66)`,
-                            boxShadow: `0 0 12px ${t.color}`
+                            boxShadow: `0 0 12px ${t.color}`,
                           }}
                         />
                       </div>
@@ -3667,37 +4831,48 @@ export default function App() {
           <div className="absolute bottom-[40px] left-1/2 -translate-x-1/2 z-[35] pointer-events-none">
             <div className="relative w-[680px]">
               {/* Nine-slice legend background */}
-              <div className="absolute inset-0 pointer-events-none" style={{
-                border: '10px solid transparent',
-                borderImageSource: `url(${legendBg})`,
-                borderImageSlice: '10 73 10 72 fill',
-                borderImageWidth: '10px 73px 10px 72px',
-                borderImageRepeat: 'stretch',
-              }} />
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  border: '10px solid transparent',
+                  borderImageSource: `url(${legendBg})`,
+                  borderImageSlice: '10 73 10 72 fill',
+                  borderImageWidth: '10px 73px 10px 72px',
+                  borderImageRepeat: 'stretch',
+                }}
+              />
 
               <div className="relative px-[28px] py-[28px]">
                 <div className="flex flex-col gap-[22px]">
                   <div className="flex items-center gap-[16px]">
                     <div className="w-[36px] h-[2px] bg-white shrink-0" />
-                    <span className="text-[18px] uppercase tracking-normal text-white/85">Submarine Networks</span>
+                    <span className="text-[18px] uppercase tracking-normal text-white/85">
+                      Submarine Networks
+                    </span>
                   </div>
                   <div className="flex items-center gap-[16px]">
                     <div className="w-[36px] flex justify-center shrink-0">
                       <div className="w-[10px] h-[10px] rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
                     </div>
-                    <span className="text-[18px] uppercase tracking-normal text-white/85">PoP Locations</span>
+                    <span className="text-[18px] uppercase tracking-normal text-white/85">
+                      PoP Locations
+                    </span>
                   </div>
                   <div className="flex items-center gap-[16px]">
                     <div className="w-[36px] flex justify-center shrink-0">
                       <div className="w-[14px] h-[14px] rotate-45 border-[2px] border-[#A54EE1] bg-[rgba(165,78,225,0.25)] shadow-[0_0_10px_#A54EE1]" />
                     </div>
-                    <span className="text-[18px] uppercase tracking-normal text-white/85">Data Centers</span>
+                    <span className="text-[18px] uppercase tracking-normal text-white/85">
+                      Data Centers
+                    </span>
                   </div>
                   <div className="flex items-center gap-[16px]">
                     <div className="w-[36px] flex justify-center shrink-0">
                       <div className="w-[22px] h-[14px] border border-[rgba(165,78,225,0.7)] bg-[rgba(165,78,225,0.15)]" />
                     </div>
-                    <span className="text-[18px] uppercase tracking-normal text-white/85">Countries Covered</span>
+                    <span className="text-[18px] uppercase tracking-normal text-white/85">
+                      Countries Covered
+                    </span>
                   </div>
                 </div>
               </div>
@@ -3706,219 +4881,231 @@ export default function App() {
         )}
 
         {/* --- RIGHT CARD --- */}
-        <div className={`absolute top-[116px] right-[40px] w-[980px] h-[calc(100%-156px)] z-40 transition-all duration-700 ease-in-out pointer-events-none flex flex-col overflow-hidden ${config.rightCard ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
-            <div className="w-full pointer-events-auto flex flex-col gap-0 h-full min-h-0 box-border">
-                
-                {config.rightCard === 'globalRight' && (
-                  <div className="flex flex-col gap-[20px] h-full min-h-0">
-                    {/* 业务状态概览 */}
-                    <div className="flex-1 min-h-0">
-                      {renderRightCardShell(
-                        'Business Status Overview',
-                        <BusinessStatusChart />,
-                        'h-full'
-                      )}
-                    </div>
+        <div
+          className={`absolute top-[116px] right-[40px] w-[980px] h-[calc(100%-156px)] z-40 transition-all duration-700 ease-in-out pointer-events-none flex flex-col overflow-hidden ${
+            config.rightCard
+              ? 'opacity-100 translate-x-0'
+              : 'opacity-0 translate-x-10'
+          }`}
+        >
+          <div className="w-full pointer-events-auto flex flex-col gap-0 h-full min-h-0 box-border">
+            {config.rightCard === 'globalRight' && (
+              <div className="flex flex-col gap-[20px] h-full min-h-0">
+                {/* 业务状态概览 */}
+                <div className="flex-1 min-h-0">
+                  {renderRightCardShell(
+                    'Business Status Overview',
+                    <BusinessStatusChart />,
+                    'h-full'
+                  )}
+                </div>
 
-                    {/* 全球告警态势摘要 (从左下角图片推测) */}
-                    <div className="flex-1 min-h-0">
-                      {renderRightCardShell(
-                        'Global Alert Summary',
-                        <GlobalAlertSummary />,
-                        'h-full'
-                      )}
-                    </div>
+                {/* 全球告警态势摘要 (从左下角图片推测) */}
+                <div className="flex-1 min-h-0">
+                  {renderRightCardShell(
+                    'Global Alert Summary',
+                    <GlobalAlertSummary />,
+                    'h-full'
+                  )}
+                </div>
 
-                    {/* 关键指标历史趋势 */}
-                    <div className="flex-1 min-h-0">
-                      {renderRightCardShell(
-                        'Historical KPI Trends',
-                        <HistoricalKPIChart />,
-                        'h-full'
-                      )}
-                    </div>
-                  </div>
+                {/* 关键指标历史趋势 */}
+                <div className="flex-1 min-h-0">
+                  {renderRightCardShell(
+                    'Historical KPI Trends',
+                    <HistoricalKPIChart />,
+                    'h-full'
+                  )}
+                </div>
+              </div>
+            )}
+
+            {config.rightCard === 'alarmRight' && (
+              <>
+                {/* 受损原因分析 */}
+                {renderRightCardShell(
+                  'Root Cause Distribution',
+                  <RootCauseChart />,
+                  'h-[380px]',
+                  'mb-[20px]'
                 )}
 
-                {config.rightCard === 'alarmRight' && (
-                  <>
-                    {/* 受损原因分析 */}
-                    {renderRightCardShell(
-                      'Root Cause Distribution',
-                      <RootCauseChart />,
-                      'h-[380px]',
-                      'mb-[20px]'
-                    )}
+                {/* 故障明细 */}
+                <div className="flex-1 min-h-0">
+                  {renderRightCardShell(
+                    'Event Ledger',
+                    <div
+                      ref={ledgerViewportRef}
+                      className="relative h-full w-full overflow-hidden event-ledger-marquee"
+                    >
+                      <div className="flex flex-col gap-[14px] pr-[8px] animate-ledger-scroll">
+                        {[...MOCK_TICKETS, ...MOCK_TICKETS].map((t, idx) => {
+                          const accent =
+                            t.severity === 'CRITICAL'
+                              ? '#FF375E'
+                              : t.severity === 'WARNING'
+                              ? '#FF5F1D'
+                              : '#8E9AA0';
+                          const statusColor =
+                            LEDGER_STATUS_COLORS[t.status] ?? '#8E9AA0';
+                          const isHighlighted = idx === centerLedgerIndex;
+                          return (
+                            <div
+                              key={`${t.id}-${idx}`}
+                              ref={(el) => {
+                                ledgerItemRefs.current[idx] = el;
+                              }}
+                              className="relative grid items-center shrink-0 px-[32px] py-[40px] min-h-[240px]"
+                              style={{
+                                gridTemplateColumns: '3px 1fr auto',
+                                columnGap: 32,
+                                background: isHighlighted
+                                  ? `linear-gradient(90deg, ${accent}2E 0%, rgba(36,22,72,0.72) 55%, rgba(20,12,40,0.5) 100%)`
+                                  : `linear-gradient(90deg, ${accent}1A 0%, rgba(20,12,40,0.45) 55%, rgba(20,12,40,0.25) 100%)`,
+                                border: isHighlighted
+                                  ? `1px solid ${accent}8C`
+                                  : `1px solid ${accent}26`,
+                                boxShadow: isHighlighted
+                                  ? `inset 0 0 0 1px ${withAlpha(
+                                      accent,
+                                      0.35
+                                    )}, 0 0 22px ${withAlpha(accent, 0.35)}`
+                                  : `inset 0 0 0 1px transparent, 0 0 0 transparent`,
+                                letterSpacing: 0,
+                                animation: isHighlighted
+                                  ? 'ledgerCardBreath 2.4s ease-in-out infinite'
+                                  : 'none',
+                              }}
+                            >
+                              {/* Severity rail */}
+                              <div
+                                className="self-stretch"
+                                style={{
+                                  background: accent,
+                                  boxShadow: isHighlighted
+                                    ? `0 0 20px ${accent}`
+                                    : `0 0 14px ${accent}`,
+                                }}
+                              />
 
-                    {/* 故障明细 */}
-                    <div className="flex-1 min-h-0">
-                      {renderRightCardShell(
-                        'Event Ledger',
-                        <div ref={ledgerViewportRef} className="relative h-full w-full overflow-y-auto overflow-x-hidden art-scrollbar">
-                          {ledgerEvents.length > 0 ? (
-                          <div
-                            className="flex flex-col gap-[14px] pr-[8px] py-[6px]"
-                          >
-                            {ledgerEvents.map((t, idx) => {
-                              const accent =
-                                t.severity === 'P1' ? '#FF375E' :
-                                t.severity === 'P2' ? '#FF5F1D' : '#8E9AA0';
-                              const statusColor = LEDGER_STATUS_COLORS[t.status] ?? '#8E9AA0';
-                              const isHighlighted = t.number === activeLedgerNumber;
-                              return (
-                                <div
-                                  key={`${t.number}-${idx}`}
-                                  data-ledger-number={t.number}
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={() => handleLedgerItemClick(t.number)}
-                                  onKeyDown={(event) => {
-                                    if (event.key === 'Enter' || event.key === ' ') {
-                                      event.preventDefault();
-                                      handleLedgerItemClick(t.number);
-                                    }
-                                  }}
-                                  className="relative grid items-center shrink-0 px-[32px] py-[40px] h-[240px] cursor-pointer outline-none"
-                                  style={{
-                                    gridTemplateColumns: '3px 1fr auto',
-                                    columnGap: 32,
-                                    background: isHighlighted
-                                      ? `linear-gradient(90deg, ${accent}2E 0%, rgba(36,22,72,0.72) 55%, rgba(20,12,40,0.5) 100%)`
-                                      : `linear-gradient(90deg, ${accent}1A 0%, rgba(20,12,40,0.45) 55%, rgba(20,12,40,0.25) 100%)`,
-                                    border: isHighlighted
-                                      ? `1px solid ${accent}8C`
-                                      : `1px solid ${accent}26`,
-                                    boxShadow: isHighlighted
-                                      ? `inset 0 0 0 1px ${withAlpha(accent, 0.35)}, 0 0 22px ${withAlpha(accent, 0.35)}`
-                                      : `inset 0 0 0 1px transparent, 0 0 0 transparent`,
-                                    letterSpacing: 0,
-                                    animation: isHighlighted ? 'ledgerCardBreath 2.4s ease-in-out infinite' : 'none',
-                                  }}
-                                >
-                                  {/* Severity rail */}
-                                  <div
-                                    className="self-stretch"
+                              {/* Content (stacked: meta + subject) */}
+                              <div className="flex flex-col justify-center gap-[30px] min-w-0">
+                                {/* Meta row: ID · Location */}
+                                <div className="flex items-center gap-[20px] font-art-mono text-[20px] uppercase min-w-0">
+                                  <span className="text-white shrink-0">
+                                    {t.id}
+                                  </span>
+                                  <span
+                                    className="h-[20px] w-px shrink-0"
                                     style={{
-                                      background: accent,
-                                      boxShadow: isHighlighted
-                                        ? `0 0 20px ${accent}`
-                                        : `0 0 14px ${accent}`,
+                                      background: 'rgba(255,255,255,0.18)',
                                     }}
                                   />
-
-                                  {/* Content (stacked: meta + subject) */}
-                                  <div className="flex flex-col justify-center gap-[30px] min-w-0">
-                                    {/* Meta row: ID · Location */}
-                                    <div className="flex items-center gap-[20px] font-art-mono text-[20px] uppercase min-w-0">
-                                      <span className="text-white shrink-0">{t.number}</span>
-                                      <span
-                                        className="h-[20px] w-px shrink-0"
-                                        style={{ background: 'rgba(255,255,255,0.18)' }}
-                                      />
-                                      <span className="inline-flex items-center gap-[8px] text-[#8E9AA0] min-w-0">
-                                        <MapPin
-                                          size={22}
-                                          weight="fill"
-                                          className="shrink-0"
-                                          style={{ color: '#8E9AA0' }}
-                                        />
-                                        <span className="truncate">{t.faultArea || t.cableName || t.network}</span>
-                                      </span>
-                                    </div>
-
-                                    {/* Subject (full sentence, may wrap) */}
-                                    <div className="font-art-sans text-[34px] font-light text-white leading-[1.3]">
-                                      {t.rootCause || t.refId}
-                                    </div>
-                                  </div>
-
-                                  {/* Status pill — vertically centered */}
-                                  <div
-                                    className="inline-flex items-center gap-[10px] shrink-0 self-center font-art-mono text-[16px] uppercase rounded-full px-[20px] py-[10px]"
-                                    style={{
-                                      backgroundColor: `${statusColor}1F`,
-                                      border: isHighlighted
-                                        ? `1px solid ${statusColor}AA`
-                                        : `1px solid ${statusColor}66`,
-                                      color: statusColor,
-                                      boxShadow: isHighlighted
-                                        ? `0 0 14px ${withAlpha(statusColor, 0.45)}`
-                                        : 'none',
-                                    }}
-                                  >
-                                    {t.status === 'Done' ? (
-                                      <DoneCheck
-                                        size={14}
-                                        color={statusColor}
-                                        className="shrink-0"
-                                      />
-                                    ) : (
-                                      <span
-                                        className="w-[8px] h-[8px] rounded-full"
-                                        style={{
-                                          background: statusColor,
-                                          boxShadow: `0 0 10px ${statusColor}`,
-                                        }}
-                                      />
-                                    )}
-                                    <span>{t.status}</span>
-                                  </div>
+                                  <span className="inline-flex items-center gap-[8px] text-[#8E9AA0] min-w-0">
+                                    <MapPin
+                                      size={22}
+                                      weight="fill"
+                                      className="shrink-0"
+                                      style={{ color: '#8E9AA0' }}
+                                    />
+                                    <span className="truncate">
+                                      {t.location}
+                                    </span>
+                                  </span>
                                 </div>
-                              );
-                            })}
-                          </div>
-                          ) : (
-                            <div className="flex h-full items-center justify-center font-art-mono text-[18px] uppercase tracking-[0.12em] text-[#8E9AA0]">
-                              No In Progress or Done events
+
+                                {/* Subject (full sentence, may wrap) */}
+                                <div className="font-art-sans text-[34px] font-light text-white leading-[1.3]">
+                                  {t.subject}
+                                </div>
+                              </div>
+
+                              {/* Status pill — vertically centered */}
+                              <div
+                                className="inline-flex items-center gap-[10px] shrink-0 self-center font-art-mono text-[16px] uppercase rounded-full px-[20px] py-[10px]"
+                                style={{
+                                  backgroundColor: `${statusColor}1F`,
+                                  border: isHighlighted
+                                    ? `1px solid ${statusColor}AA`
+                                    : `1px solid ${statusColor}66`,
+                                  color: statusColor,
+                                  boxShadow: isHighlighted
+                                    ? `0 0 14px ${withAlpha(statusColor, 0.45)}`
+                                    : 'none',
+                                }}
+                              >
+                                <span
+                                  className="w-[8px] h-[8px] rounded-full"
+                                  style={{
+                                    background: statusColor,
+                                    boxShadow: `0 0 10px ${statusColor}`,
+                                  }}
+                                />
+                                <span>{t.status}</span>
+                              </div>
                             </div>
-                          )}
-                        </div>,
-                        'h-full'
-                      )}
+                          );
+                        })}
+                      </div>
+                    </div>,
+                    'h-full'
+                  )}
+                </div>
+              </>
+            )}
+
+            {config.rightCard === 'cableMapStats' && (
+              <div className="w-full h-[437px] p-[24px] flex flex-col gap-8 bg-[rgba(56,55,110,0.3)] backdrop-blur-[25px] border border-[rgba(161,115,202,0.2)]">
+                <div className="flex items-center gap-4">
+                  <div className="w-[8px] h-[8px] bg-[#FF0059] shrink-0" />
+                  <h2 className={CARD_TITLE}>Active Routing.</h2>
+                </div>
+                <div className="w-full h-px bg-white/10 -mt-2" />
+                <div className="flex flex-col gap-10 text-[#8E9AA0] text-[24px] tracking-widest">
+                  <div>
+                    <div className="mb-2 text-white/80 font-light">
+                      ACTIVE ROUTES
                     </div>
-                  </>
-                )}
-
-                {config.rightCard === 'cableMapStats' && (
-                  <div className="w-full h-[437px] p-[24px] flex flex-col gap-8 bg-[rgba(56,55,110,0.3)] backdrop-blur-[25px] border border-[rgba(161,115,202,0.2)]">
-                      <div className="flex items-center gap-4">
-                        <div className="w-[8px] h-[8px] bg-[#FF0059] shrink-0" />
-                        <h2 className={CARD_TITLE}>Active Routing.</h2>
-                      </div>
-                      <div className="w-full h-px bg-white/10 -mt-2" />
-                      <div className="flex flex-col gap-10 text-[#8E9AA0] text-[24px] tracking-widest">
-                          <div>
-                              <div className="mb-2 text-white/80 font-light">ACTIVE ROUTES</div>
-                              <div className="text-[64px] text-[#A54EE1]">118</div>
-                          </div>
-                          <div>
-                              <div className="mb-2 text-white/80 font-light">REGIONAL FAULTS</div>
-                              <div className="text-[64px] text-[#FF375E]">02</div>
-                          </div>
-                      </div>
+                    <div className="text-[64px] text-[#A54EE1]">118</div>
                   </div>
-                )}
-
-                {config.rightCard === 'dcMapStats' && (
-                  <div className="w-full h-[437px] p-[24px] flex flex-col gap-8 bg-[rgba(56,55,110,0.3)] backdrop-blur-[25px] border border-[rgba(161,115,202,0.2)]">
-                      <div className="flex items-center gap-4">
-                        <div className="w-[8px] h-[8px] bg-[#FF0059] shrink-0" />
-                        <h2 className={CARD_TITLE}>Regional Metrics.</h2>
-                      </div>
-                      <div className="w-full h-px bg-white/10 -mt-2" />
-                      <div className="flex flex-col gap-10 text-[#8E9AA0] text-[24px] tracking-widest">
-                          <div>
-                              <div className="mb-2 text-white/80 font-light">NETWORK LATENCY</div>
-                              <div className="text-[64px] text-[#FFFFFF]">12<span className="text-[32px]">ms</span></div>
-                          </div>
-                          <div>
-                              <div className="mb-2 text-white/80 font-light">TRAFFIC LOAD</div>
-                              <div className="text-[64px] text-[#A54EE1]">144 <span className="text-[32px]">Tbps</span></div>
-                          </div>
-                      </div>
+                  <div>
+                    <div className="mb-2 text-white/80 font-light">
+                      REGIONAL FAULTS
+                    </div>
+                    <div className="text-[64px] text-[#FF375E]">02</div>
                   </div>
-                )}
-            </div>
+                </div>
+              </div>
+            )}
+
+            {config.rightCard === 'dcMapStats' && (
+              <div className="w-full h-[437px] p-[24px] flex flex-col gap-8 bg-[rgba(56,55,110,0.3)] backdrop-blur-[25px] border border-[rgba(161,115,202,0.2)]">
+                <div className="flex items-center gap-4">
+                  <div className="w-[8px] h-[8px] bg-[#FF0059] shrink-0" />
+                  <h2 className={CARD_TITLE}>Regional Metrics.</h2>
+                </div>
+                <div className="w-full h-px bg-white/10 -mt-2" />
+                <div className="flex flex-col gap-10 text-[#8E9AA0] text-[24px] tracking-widest">
+                  <div>
+                    <div className="mb-2 text-white/80 font-light">
+                      NETWORK LATENCY
+                    </div>
+                    <div className="text-[64px] text-[#FFFFFF]">
+                      12<span className="text-[32px]">ms</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 text-white/80 font-light">
+                      TRAFFIC LOAD
+                    </div>
+                    <div className="text-[64px] text-[#A54EE1]">
+                      144 <span className="text-[32px]">Tbps</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <style>{`
@@ -3962,7 +5149,6 @@ export default function App() {
             }
           }
         `}</style>
-
       </div>
     </div>
   );

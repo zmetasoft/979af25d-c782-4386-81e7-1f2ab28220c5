@@ -80,24 +80,45 @@
           "sorts": []
         },
         {
-          "datasetId": "e0a3cbd4-3446-456b-8898-8f0506ec4f5b",
-          "fields": [],
+          "datasetId": "b254510f-2a09-4f41-88aa-a98089eadc76",
+          "fields": [
+            {
+              "name": "Ref Id",
+              "type": "string"
+            },
+            {
+              "name": "Root cause",
+              "type": "string"
+            },
+            {
+              "name": "Latitude",
+              "type": "number"
+            },
+            {
+              "name": "Longitude",
+              "type": "number"
+            },
+            {
+              "name": "Severity",
+              "type": "string"
+            }
+          ],
           "config": {
             "layerType": "landmark",
             "layerName": "故障点位（P1）",
             "enabled": true,
+            "iconId": "红色标点",
             "categoryField": "Severity",
             "categoryValue": "P1",
-            "fields": {
-              "lonField": "Longitude",
-              "latField": "Latitude",
-              "nameField": "Ref Id",
-              "idField": "Number"
-            },
             "labelCard": {
               "mode": "none",
               "titleField": "Ref Id",
               "contentField": "Root cause"
+            },
+            "fields": {
+              "lonField": "Longitude",
+              "latField": "Latitude",
+              "nameField": "Ref Id"
             },
             "style": {
               "sizeMode": "world",
@@ -111,31 +132,51 @@
                 "appearMs": 260,
                 "disappearMs": 220
               }
-            },
-            "iconId": "红色标点"
+            }
           },
           "filters": [],
           "sorts": []
         },
         {
-          "datasetId": "e0a3cbd4-3446-456b-8898-8f0506ec4f5b",
-          "fields": [],
+          "datasetId": "b254510f-2a09-4f41-88aa-a98089eadc76",
+          "fields": [
+            {
+              "name": "Ref Id",
+              "type": "string"
+            },
+            {
+              "name": "Root cause",
+              "type": "string"
+            },
+            {
+              "name": "Latitude",
+              "type": "number"
+            },
+            {
+              "name": "Longitude",
+              "type": "number"
+            },
+            {
+              "name": "Severity",
+              "type": "string"
+            }
+          ],
           "config": {
             "layerType": "landmark",
             "layerName": "故障点位（P2）",
             "enabled": true,
+            "iconId": "蓝色标点",
             "categoryField": "Severity",
             "categoryValue": "P2",
-            "fields": {
-              "lonField": "Longitude",
-              "latField": "Latitude",
-              "nameField": "Ref Id",
-              "idField": "Number"
-            },
             "labelCard": {
               "mode": "none",
               "titleField": "Ref Id",
               "contentField": "Root cause"
+            },
+            "fields": {
+              "lonField": "Longitude",
+              "latField": "Latitude",
+              "nameField": "Ref Id"
             },
             "style": {
               "sizeMode": "world",
@@ -149,8 +190,7 @@
                 "appearMs": 260,
                 "disappearMs": 220
               }
-            },
-            "iconId": "蓝色标点"
+            }
           },
           "filters": [],
           "sorts": []
