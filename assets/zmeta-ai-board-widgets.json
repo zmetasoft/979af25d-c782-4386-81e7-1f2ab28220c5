@@ -263,7 +263,7 @@
                 "name": "Latitude"
               }
             },
-            "markerModelId": "builtin:beacon",
+            "markerModelId": "custom:红色标点.glb",
             "size": {
               "scale": 0.05,
               "randomness": 0.3
@@ -282,7 +282,7 @@
                 }
               ]
             },
-            "heightOffset": 0.1
+            "heightOffset": 0.03
           },
           "filters": [],
           "sorts": []

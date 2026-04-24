@@ -93,7 +93,7 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
         lonField: { name: 'Longitude' },
         latField: { name: 'Latitude' },
       },
-      markerModelId: 'builtin:beacon',
+      markerModelId: 'custom:红色标点.glb',
       size: { scale: 0.05, randomness: 0.3 },
       label: { fields: [] },
       animation: {
@@ -102,7 +102,7 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
         disappearMs: 1000,
         clips: [{ clipName: '报警点位动画', enabled: true }],
       },
-      heightOffset: 0.1,
+      heightOffset: 0.03,
     },
     filters: [],
     sorts: [],
