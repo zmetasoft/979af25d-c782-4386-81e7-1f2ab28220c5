@@ -92,9 +92,21 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
   {
     datasetId: '1941c631-34fd-42f4-bec7-fbfb25bde290',
     fields: [
-      { id: '29ebd619-6fe7-4aba-90be-7e221911f3b6', name: 'longitude', type: 'number' },
-      { id: '9dfa780d-9434-46fd-9988-29a1e17b4a7e', name: 'latitude', type: 'number' },
-      { id: 'af5ad011-b643-4895-9ddb-ea9fec255ce7', name: 'cable_name', type: 'string' },
+      {
+        id: '29ebd619-6fe7-4aba-90be-7e221911f3b6',
+        name: 'longitude',
+        type: 'number',
+      },
+      {
+        id: '9dfa780d-9434-46fd-9988-29a1e17b4a7e',
+        name: 'latitude',
+        type: 'number',
+      },
+      {
+        id: 'af5ad011-b643-4895-9ddb-ea9fec255ce7',
+        name: 'cable_name',
+        type: 'string',
+      },
     ],
     config: {
       layerType: 'connection',
@@ -132,8 +144,16 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
   {
     datasetId: '683dea89-f65d-4ae5-a0df-5c0578ac4afe',
     fields: [
-      { id: '0700a019-e7db-4f4e-806d-ec30b46bb89a', name: 'Longitude', type: 'number' },
-      { id: '81526c16-1fc2-4fd6-99a1-6db82b92ab8f', name: 'Latitude', type: 'number' },
+      {
+        id: '0700a019-e7db-4f4e-806d-ec30b46bb89a',
+        name: 'Longitude',
+        type: 'number',
+      },
+      {
+        id: '81526c16-1fc2-4fd6-99a1-6db82b92ab8f',
+        name: 'Latitude',
+        type: 'number',
+      },
     ],
     config: {
       layerType: 'marker',
@@ -160,7 +180,13 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
   },
   {
     datasetId: '24f7ad6b-050e-416f-9cd9-4c89b328fa52',
-    fields: [{ id: 'f04e5f74-bff0-4838-9db3-4c910bc1ae51', name: 'region_name', type: 'string' }],
+    fields: [
+      {
+        id: 'f04e5f74-bff0-4838-9db3-4c910bc1ae51',
+        name: 'region_name',
+        type: 'string',
+      },
+    ],
     config: {
       layerType: 'region',
       layerName: '区域图层',
@@ -188,8 +214,16 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
   {
     datasetId: '1941c631-34fd-42f4-bec7-fbfb25bde290',
     fields: [
-      { id: 'cae649f5-fdd8-43b8-ae8b-0e273f0cc1e5', name: 'longitude', type: 'number' },
-      { id: '91f2892a-dee1-4848-a4cf-bc51342de1e0', name: 'latitude', type: 'number' },
+      {
+        id: 'cae649f5-fdd8-43b8-ae8b-0e273f0cc1e5',
+        name: 'longitude',
+        type: 'number',
+      },
+      {
+        id: '91f2892a-dee1-4848-a4cf-bc51342de1e0',
+        name: 'latitude',
+        type: 'number',
+      },
     ],
     config: {
       layerType: 'marker',
@@ -216,8 +250,16 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
   {
     datasetId: '41cb8e07-da93-465a-99d7-571c2cc5412a',
     fields: [
-      { id: '5744b298-16aa-4900-80a4-1dde99c1df3b', name: 'longitude', type: 'number' },
-      { id: 'dccd6a8b-dcdb-47e6-80ae-9ac7cd7f08de', name: 'latitude', type: 'number' },
+      {
+        id: '5744b298-16aa-4900-80a4-1dde99c1df3b',
+        name: 'longitude',
+        type: 'number',
+      },
+      {
+        id: 'dccd6a8b-dcdb-47e6-80ae-9ac7cd7f08de',
+        name: 'latitude',
+        type: 'number',
+      },
     ],
     config: {
       layerType: 'marker',
@@ -647,11 +689,10 @@ const GLOBE_CAMERA_ZOOM_IN_MS =
   GLOBE_CAMERA_MOVE_MS;
 const LANDMARK_PLAY_HOLD_MS = 2200;
 const POPUP_HIDE_LEAD_MS = 260;
+const ALARM_AUTO_CYCLE_STEP_MS =
+  POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS + LANDMARK_PLAY_HOLD_MS;
 const MANUAL_PLAYBACK_RESUME_DELAY_MS =
-  POPUP_HIDE_LEAD_MS +
-  GLOBE_TRANSITION_TOTAL_MS +
-  LANDMARK_PLAY_HOLD_MS +
-  LEDGER_CLICK_PAUSE_MS;
+  ALARM_AUTO_CYCLE_STEP_MS + LEDGER_CLICK_PAUSE_MS;
 const GLOBE_ACTIVE_LANDMARK_LAYER_NAME = '故障点位（Active）';
 const AI_BOARD_WIDGET_EVENT_MESSAGE_TYPE = 'zmeta-ai-board-widget:event';
 const DEBUG_GLOBE_CLICK = true;
@@ -723,8 +764,20 @@ function resolveLandmarkLayerSeverity(
   return null;
 }
 
+function buildAlarmLandmarkIdentity(point: AlarmLandmarkPoint): string {
+  return [
+    point.number,
+    point.refId,
+    point.severity,
+    point.lon.toFixed(6),
+    point.lat.toFixed(6),
+  ].join('|');
+}
+
 function formatSentenceHeadline(value: unknown): string {
-  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  const text = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!text) {
     return '--';
   }
@@ -877,7 +930,9 @@ function renderAlertCardContent(
             {item.ticketId}
           </span>
           <span className="text-[rgba(221,223,226,0.28)]">·</span>
-          <span className="font-art-mono uppercase tracking-normal text-[22px] truncate">{item.ticketId}</span>
+          <span className="font-art-mono uppercase tracking-normal text-[22px] truncate">
+            {item.ticketId}
+          </span>
         </div>
 
         {/* ───────── Divider ───────── */}
@@ -894,13 +949,21 @@ function renderAlertCardContent(
           {(() => {
             const createdAt = item.createdAt || item.startTime;
             const statusText = item.datasetStatus || item.advisory || '--';
-            const statusAccentColor = LEDGER_STATUS_COLORS[statusText] ?? accentColor;
+            const statusAccentColor =
+              LEDGER_STATUS_COLORS[statusText] ?? accentColor;
             const isDone = statusText === 'Done';
             const statusSegments = 5;
-            const activeStatusSegments = isDone ? statusSegments : statusText === 'In Progress' ? 2 : 1;
+            const activeStatusSegments = isDone
+              ? statusSegments
+              : statusText === 'In Progress'
+              ? 2
+              : 1;
             const durationPct = Math.max(
               8,
-              Math.min(100, Number.isFinite(item.progressPct) ? item.progressPct : 35)
+              Math.min(
+                100,
+                Number.isFinite(item.progressPct) ? item.progressPct : 35
+              )
             );
             const rows: {
               label: string;
@@ -1005,7 +1068,9 @@ function renderAlertCardContent(
                     Lat / Lon Position
                   </span>
                 ),
-                value: `${formatCoordinate(item.latitude)}, ${formatCoordinate(item.longitude)}`,
+                value: `${formatCoordinate(item.latitude)}, ${formatCoordinate(
+                  item.longitude
+                )}`,
                 valueColor: '#FFFFFF',
               },
             ];
@@ -2817,7 +2882,9 @@ export default function App() {
       logGlobeClickDebug(
         'configured landmark datasets missing in runtime, fallback to local dataset',
         {
-          configuredLandmarkDatasetIds: Array.from(configuredLandmarkDatasetIds),
+          configuredLandmarkDatasetIds: Array.from(
+            configuredLandmarkDatasetIds
+          ),
           runtimeDatasetIds: runtimeDatasets.map((dataset) => dataset.id),
         }
       );
@@ -2903,6 +2970,9 @@ export default function App() {
   const [activeLandmarkIndex, setActiveLandmarkIndex] = useState(0);
   const [cycleStartIndex, setCycleStartIndex] = useState(0);
   const [isAutoCycleEnabled, setIsAutoCycleEnabled] = useState(true);
+  const [autoCycleRoundLimit, setAutoCycleRoundLimit] = useState<number | null>(
+    null
+  );
   const [manualPlaybackRequest, setManualPlaybackRequest] = useState<{
     id: number;
     index: number;
@@ -2916,6 +2986,8 @@ export default function App() {
   const manualPlaybackRequestIdRef = useRef(0);
   const lastHandledManualPlaybackRequestIdRef = useRef(0);
   const autoCycleResumeTimerRef = useRef<number | null>(null);
+  const previousLandmarkKeySetRef = useRef<Set<string>>(new Set());
+  const hasLandmarkSnapshotRef = useRef(false);
   const requestManualPlayback = useCallback((index: number) => {
     manualPlaybackRequestIdRef.current += 1;
     setManualPlaybackRequest({
@@ -2951,6 +3023,7 @@ export default function App() {
         targetIndex,
         landmarksCount: alarmLandmarks.length,
       });
+      setAutoCycleRoundLimit(null);
       setCurrentStory('ALARM_EVENT');
       setIsAutoCycleEnabled(false);
       setCycleStartIndex(targetIndex);
@@ -2980,8 +3053,7 @@ export default function App() {
   const ledgerScrollDistance =
     ledgerEvents.length * (LEDGER_CARD_HEIGHT + LEDGER_CARD_GAP);
   const ledgerScrollDurationMs =
-    Math.max(1, ledgerEvents.length) *
-    (POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS + LANDMARK_PLAY_HOLD_MS);
+    Math.max(1, ledgerEvents.length) * ALARM_AUTO_CYCLE_STEP_MS;
   const activeLandmark = alarmLandmarks[activeLandmarkIndex] ?? null;
   const activeLedgerNumber = visibleLedgerNumber;
   const ledgerScrollSpeedPxPerMs =
@@ -3000,7 +3072,8 @@ export default function App() {
     }
 
     const isP2 = activeLandmark.severity === 'P2';
-    const resolvedTime = activeLandmark.closedOn || activeLandmark.alarmClearTime;
+    const resolvedTime =
+      activeLandmark.closedOn || activeLandmark.alarmClearTime;
     const durationEnd = activeLandmark.status === 'Done' ? resolvedTime : '';
     return {
       ...activeAlertTemplate,
@@ -3031,7 +3104,11 @@ export default function App() {
       phenomenon: activeLandmark.rootCause || activeAlertTemplate.phenomenon,
       advisory: activeLandmark.status || activeAlertTemplate.advisory,
       startTime: activeLandmark.createdTime || activeAlertTemplate.startTime,
-      duration: formatElapsedDuration(activeLandmark.createdTime, durationEnd, now),
+      duration: formatElapsedDuration(
+        activeLandmark.createdTime,
+        durationEnd,
+        now
+      ),
       snapshotMetricValue:
         activeLandmark.refId || activeAlertTemplate.snapshotMetricValue,
       metrics: [
@@ -3052,6 +3129,15 @@ export default function App() {
   useEffect(() => {
     storyRef.current = currentStory;
   }, [currentStory]);
+
+  useEffect(() => {
+    if (currentStory === 'ALARM_EVENT') {
+      return;
+    }
+    if (autoCycleRoundLimit !== null) {
+      setAutoCycleRoundLimit(null);
+    }
+  }, [currentStory, autoCycleRoundLimit]);
 
   useEffect(() => {
     activeAlertRef.current = activeAlert;
@@ -3171,6 +3257,52 @@ export default function App() {
     setActiveLandmarkIndex((prev) => prev % alarmLandmarks.length);
     setCycleStartIndex((prev) => prev % alarmLandmarks.length);
   }, [alarmLandmarks.length]);
+
+  useEffect(() => {
+    const nextKeySet = new Set(
+      alarmLandmarks.map((point) => buildAlarmLandmarkIdentity(point))
+    );
+
+    if (!hasLandmarkSnapshotRef.current) {
+      previousLandmarkKeySetRef.current = nextKeySet;
+      hasLandmarkSnapshotRef.current = true;
+      return;
+    }
+
+    const previousKeySet = previousLandmarkKeySetRef.current;
+    const addedEntries = alarmLandmarks
+      .map((point, index) => ({
+        index,
+        key: buildAlarmLandmarkIdentity(point),
+      }))
+      .filter((item) => !previousKeySet.has(item.key));
+
+    previousLandmarkKeySetRef.current = nextKeySet;
+
+    if (addedEntries.length === 0) {
+      return;
+    }
+
+    const targetIndex = addedEntries[0]?.index ?? 0;
+    logGlobeClickDebug('detected new alarm landmarks, trigger auto playback', {
+      addedCount: addedEntries.length,
+      targetIndex,
+      landmarksCount: alarmLandmarks.length,
+    });
+
+    if (autoCycleResumeTimerRef.current !== null) {
+      window.clearTimeout(autoCycleResumeTimerRef.current);
+      autoCycleResumeTimerRef.current = null;
+    }
+
+    setManualPlaybackRequest(null);
+    setVisibleLedgerNumber('');
+    setIsLedgerScrollPaused(false);
+    setCycleStartIndex(targetIndex);
+    setIsAutoCycleEnabled(true);
+    setAutoCycleRoundLimit(Math.max(1, alarmLandmarks.length));
+    setCurrentStory('ALARM_EVENT');
+  }, [alarmLandmarks]);
 
   useEffect(() => {
     if (alertPopupPhase !== 'visible' || !activeLandmark?.number) {
@@ -3595,7 +3727,13 @@ export default function App() {
 
     const playCycle = (
       index: number,
-      options: { allowLoop: boolean; source: 'auto' | 'click' }
+      options: {
+        allowLoop: boolean;
+        source: 'auto' | 'click';
+        maxSteps: number | null;
+        onLoopComplete: (() => void) | null;
+      },
+      playedSteps = 0
     ) => {
       if (cancelled) {
         return;
@@ -3614,6 +3752,8 @@ export default function App() {
         point,
         source: options.source,
         allowLoop: options.allowLoop,
+        playedSteps,
+        maxSteps: options.maxSteps,
       });
 
       setActiveLandmarkIndex(index);
@@ -3642,13 +3782,23 @@ export default function App() {
       if (options.allowLoop) {
         const nextTimer = window.setTimeout(() => {
           if (cancelled) return;
+          const reachedRoundLimit =
+            options.maxSteps !== null && playedSteps + 1 >= options.maxSteps;
+          if (reachedRoundLimit) {
+            logGlobeClickDebug('playCycle round completed', {
+              playedSteps: playedSteps + 1,
+              maxSteps: options.maxSteps,
+            });
+            options.onLoopComplete?.();
+            return;
+          }
           const nextIndex = (index + 1) % alarmLandmarks.length;
           logGlobeClickDebug('playCycle schedule next', {
             index,
             nextIndex,
           });
-          playCycle(nextIndex, options);
-        }, POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS + LANDMARK_PLAY_HOLD_MS);
+          playCycle(nextIndex, options, playedSteps + 1);
+        }, ALARM_AUTO_CYCLE_STEP_MS);
         timers.add(nextTimer);
       }
     };
@@ -3663,9 +3813,25 @@ export default function App() {
     if (hasManualPlaybackRequest && manualPlaybackRequest) {
       lastHandledManualPlaybackRequestIdRef.current = manualPlaybackRequest.id;
     }
+    const shouldAutoReturnToGlobalAfterRound =
+      !hasManualPlaybackRequest &&
+      isAutoCycleEnabled &&
+      autoCycleRoundLimit !== null;
     const playbackOptions = {
       allowLoop: !hasManualPlaybackRequest && isAutoCycleEnabled,
       source: hasManualPlaybackRequest ? 'click' : 'auto',
+      maxSteps: shouldAutoReturnToGlobalAfterRound ? autoCycleRoundLimit : null,
+      onLoopComplete: shouldAutoReturnToGlobalAfterRound
+        ? () => {
+            if (cancelled) {
+              return;
+            }
+            setAutoCycleRoundLimit(null);
+            setCurrentStory('GLOBAL');
+            setIsLedgerScrollPaused(false);
+            setVisibleLedgerNumber('');
+          }
+        : null,
     } as const;
     logGlobeClickDebug('cycle effect start', {
       normalizedStartIndex,
@@ -3673,6 +3839,7 @@ export default function App() {
       isAutoCycleEnabled,
       hasManualPlaybackRequest,
       source: playbackOptions.source,
+      maxSteps: playbackOptions.maxSteps,
     });
     playCycle(normalizedStartIndex, playbackOptions);
 
@@ -3686,6 +3853,7 @@ export default function App() {
     alarmLandmarks,
     cycleStartIndex,
     isAutoCycleEnabled,
+    autoCycleRoundLimit,
     manualPlaybackRequest,
   ]);
 
@@ -4461,7 +4629,8 @@ export default function App() {
                 'linear-gradient(to right, transparent 0%, black 12%, black 82%, transparent 100%)',
               WebkitMaskImage:
                 '-webkit-linear-gradient(left, transparent 0%, black 12%, black 82%, transparent 100%)',
-              filter: 'saturate(1.46) contrast(1.8) brightness(0.78) hue-rotate(24deg)',
+              filter:
+                'saturate(1.46) contrast(1.8) brightness(0.78) hue-rotate(24deg)',
             }}
           >
             <WidgetHost
@@ -4539,7 +4708,8 @@ export default function App() {
                 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%)',
               WebkitMaskImage:
                 '-webkit-linear-gradient(left, transparent 0%, black 12%, black 88%, transparent 100%)',
-              filter: 'saturate(1.25) contrast(1.12) brightness(0.92) hue-rotate(18deg)',
+              filter:
+                'saturate(1.25) contrast(1.12) brightness(0.92) hue-rotate(18deg)',
             }}
           >
             <WidgetHost
@@ -5197,15 +5367,15 @@ export default function App() {
                 <div className="flex-1 min-h-0">
                   {renderRightCardShell(
                     'Event Ledger',
-                    <div
-                      className="relative h-full w-full overflow-hidden event-ledger-marquee"
-                    >
+                    <div className="relative h-full w-full overflow-hidden event-ledger-marquee">
                       {scrollingLedgerEvents.length > 0 ? (
                         <div
                           className="flex flex-col gap-[14px] pr-[8px] animate-ledger-free-scroll"
                           style={{
                             ['--ledger-scroll-distance' as any]: `${ledgerScrollDistance}px`,
-                            ['--ledger-scroll-start' as any]: `${-ledgerScrollDistance + ledgerInitialOffset}px`,
+                            ['--ledger-scroll-start' as any]: `${
+                              -ledgerScrollDistance + ledgerInitialOffset
+                            }px`,
                             animationDuration: `${ledgerScrollDurationMs}ms`,
                             animationPlayState: isLedgerScrollPaused
                               ? 'paused'
