@@ -107,7 +107,7 @@
               "sizeMode": "world",
               "worldSize": 56,
               "screenSizePx": 56,
-              "animationEnabled": false,
+              "animationEnabled": true,
               "animationDurationMs": 1000,
               "animationLoopGapMs": 0,
               "presenceAnimation": {
@@ -116,7 +116,7 @@
                 "disappearMs": 220
               }
             },
-            "iconId": "红色标点"
+            "iconId": "橘色标点"
           },
           "filters": [],
           "sorts": []
@@ -145,7 +145,7 @@
               "sizeMode": "world",
               "worldSize": 56,
               "screenSizePx": 56,
-              "animationEnabled": false,
+              "animationEnabled": true,
               "animationDurationMs": 1000,
               "animationLoopGapMs": 0,
               "presenceAnimation": {
@@ -154,7 +154,7 @@
                 "disappearMs": 220
               }
             },
-            "iconId": "蓝色标点"
+            "iconId": "红色标点"
           },
           "filters": [],
           "sorts": []

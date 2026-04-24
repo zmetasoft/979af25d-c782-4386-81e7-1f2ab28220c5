@@ -111,7 +111,7 @@
             "layerType": "landmark",
             "layerName": "故障点位（P1）",
             "enabled": true,
-            "iconId": "红色标点",
+            "iconId": "橘色标点",
             "categoryField": "Severity",
             "categoryValue": "P1",
             "labelCard": {
@@ -128,7 +128,7 @@
               "sizeMode": "world",
               "worldSize": 56,
               "screenSizePx": 56,
-              "animationEnabled": false,
+              "animationEnabled": true,
               "animationDurationMs": 1000,
               "animationLoopGapMs": 0,
               "presenceAnimation": {
@@ -169,7 +169,7 @@
             "layerType": "landmark",
             "layerName": "故障点位（P2）",
             "enabled": true,
-            "iconId": "橘色标点",
+            "iconId": "红色标点",
             "categoryField": "Severity",
             "categoryValue": "P2",
             "labelCard": {
@@ -186,7 +186,7 @@
               "sizeMode": "world",
               "worldSize": 56,
               "screenSizePx": 56,
-              "animationEnabled": false,
+              "animationEnabled": true,
               "animationDurationMs": 1000,
               "animationLoopGapMs": 0,
               "presenceAnimation": {
