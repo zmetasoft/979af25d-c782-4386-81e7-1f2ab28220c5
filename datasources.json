@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "name": "file-datasource",
+    "type": "file",
+    "config": {
+      "dataId": "a8fbd2d6-04c4-4f95-8e20-4b76f636f2d1"
+    },
+    "$modelType": "dashboard/DatasourceModel",
+    "id": "ff53b346-5e6e-4f82-8b2f-2e1ed3ad7f57"
+  },
+  {
+    "name": "file-datasource",
+    "type": "file",
+    "config": {
+      "dataId": "31b019e9-8d98-46de-a2f9-8725bf42b126"
+    },
+    "$modelType": "dashboard/DatasourceModel",
+    "id": "d7c63a8b-743c-4d50-a4ba-2d96f0cf10ef"
+  }
+]
