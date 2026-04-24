@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { WidgetHost } from '@zmeta/ai-board-sdk';
+import { WidgetHost, assetUrl, useDataset } from '@zmeta/ai-board-sdk';
 import * as echarts from 'https://esm.sh/echarts@5.5.1';
 import {
   Engine, Scene, ArcRotateCamera, Vector3, MeshBuilder,
@@ -8,7 +8,6 @@ import {
 } from 'https://esm.sh/@babylonjs/core@9.3.0?bundle';
 import { GeoJsonLayer, ScatterplotLayer, PathLayer, ArcLayer } from 'https://esm.sh/@deck.gl/layers@9.3.0?bundle';
 import { PathStyleExtension } from 'https://esm.sh/@deck.gl/extensions@9.3.0?bundle';
-import MaplibreMap, { type MapHandle } from './components/MaplibreMap';
 import {
   Plus,
   CaretUp, CaretDown, Network, Globe, MapPin, Database, Ruler,
@@ -16,20 +15,17 @@ import {
   type Icon,
 } from './components/Icons';
 
-// react-map-gl MapRef shim — we now use a raw maplibre-gl Map instance via MaplibreMap.
-type MapRef = MapHandle;
-
 // Static asset URLs (served from site/assets/ by the AI board runtime).
-const cardBg = './assets/card-bg.svg';
-const cardTitleArrow = './assets/card-title-arrow.svg';
-const cardDivider = './assets/card-divider.svg';
-const metricCardBg = './assets/metric-card-bg.svg';
-const metricCardBgCoral = './assets/metric-card-bg-coral.svg';
-const metricCardBgOrange = './assets/metric-card-bg-orange.svg';
-const legendBg = './assets/legend-bg.svg';
-const alertPopupBg = './assets/alert-popup-bg.svg';
-const alertPopupBgOrange = './assets/alert-popup-bg-orange.svg';
-const center3Logo = './assets/center3logo.svg';
+const cardBg = assetUrl('card-bg.svg');
+const cardTitleArrow = assetUrl('card-title-arrow.svg');
+const cardDivider = assetUrl('card-divider.svg');
+const metricCardBg = assetUrl('metric-card-bg.svg');
+const metricCardBgCoral = assetUrl('metric-card-bg-coral.svg');
+const metricCardBgOrange = assetUrl('metric-card-bg-orange.svg');
+const legendBg = assetUrl('legend-bg.svg');
+const alertPopupBg = assetUrl('alert-popup-bg.svg');
+const alertPopupBgOrange = assetUrl('alert-popup-bg-orange.svg');
+const center3Logo = assetUrl('center3logo.svg');
 
 // ----------------------------------------------------
 // Art / Editorial Brand Colors (Generative Aesthetics based on Brand GL)
@@ -121,6 +117,164 @@ const LEDGER_STATUS_COLORS: Record<string, string> = {
   Scheduled: '#8E9AA0',
   Resolved: '#5FE3A1',
 };
+
+type CablePathDatum = {
+  name: string;
+  type: string;
+  status?: string;
+  isProtection?: boolean;
+  coordinates: [number, number][];
+};
+
+function parseCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      values.push(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  values.push(current);
+  return values;
+}
+
+function parseCablePathsFromCsv(csvText: string): CablePathDatum[] {
+  const lines = csvText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length <= 1) return [];
+
+  const headers = parseCsvLine(lines[0]);
+  const headerIndex = {
+    cableName: headers.indexOf('cable_name'),
+    cableType: headers.indexOf('cable_type'),
+    isProtection: headers.indexOf('is_protection'),
+    status: headers.indexOf('status'),
+    pointIndex: headers.indexOf('point_index'),
+    longitude: headers.indexOf('longitude'),
+    latitude: headers.indexOf('latitude'),
+  };
+
+  const missingHeaders = Object.entries(headerIndex)
+    .filter(([, idx]) => idx < 0)
+    .map(([key]) => key);
+
+  if (missingHeaders.length > 0) {
+    throw new Error(`missing csv headers: ${missingHeaders.join(', ')}`);
+  }
+
+  const grouped = new Map<
+    string,
+    {
+      name: string;
+      type: string;
+      status: string;
+      isProtection: boolean;
+      points: Array<{ index: number; longitude: number; latitude: number }>;
+    }
+  >();
+
+  lines.slice(1).forEach((line, rowIndex) => {
+    const cols = parseCsvLine(line);
+    const name = (cols[headerIndex.cableName] || '').trim();
+    if (!name) return;
+
+    const type = (cols[headerIndex.cableType] || '').trim();
+    const status = (cols[headerIndex.status] || '').trim();
+    const isProtectionText = (cols[headerIndex.isProtection] || '')
+      .trim()
+      .toLowerCase();
+    const isProtection =
+      isProtectionText === 'true' ||
+      isProtectionText === '1' ||
+      isProtectionText === 'yes';
+
+    const pointIndexRaw = Number(cols[headerIndex.pointIndex]);
+    const longitude = Number(cols[headerIndex.longitude]);
+    const latitude = Number(cols[headerIndex.latitude]);
+
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return;
+
+    const key = `${name}||${type}||${isProtection}||${status}`;
+    const entry = grouped.get(key) || {
+      name,
+      type,
+      status,
+      isProtection,
+      points: [],
+    };
+
+    entry.points.push({
+      index: Number.isFinite(pointIndexRaw) ? pointIndexRaw : rowIndex + 1,
+      longitude,
+      latitude,
+    });
+
+    grouped.set(key, entry);
+  });
+
+  return Array.from(grouped.values())
+    .map((entry) => {
+      const coordinates = entry.points
+        .sort((a, b) => a.index - b.index)
+        .map((point) => [point.longitude, point.latitude] as [number, number]);
+
+      return {
+        name: entry.name,
+        type: entry.type,
+        ...(entry.status ? { status: entry.status } : {}),
+        ...(entry.isProtection ? { isProtection: true } : {}),
+        coordinates,
+      };
+    })
+    .filter((item) => item.coordinates.length >= 2);
+}
+
+async function loadCablePathsFromAssets(): Promise<CablePathDatum[]> {
+  try {
+    const csvText = await fetch(assetUrl('cables_coordinates.csv')).then(
+      async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        return response.text();
+      }
+    );
+
+    const parsed = parseCablePathsFromCsv(csvText);
+    if (parsed.length > 0) {
+      return parsed;
+    }
+    throw new Error('parsed zero cable paths from CSV');
+  } catch (error) {
+    console.warn(
+      '[dashboard] failed to load cables_coordinates.csv, fallback to cables.json',
+      error
+    );
+    return fetch(assetUrl('cables.json')).then((r) => r.json());
+  }
+}
 
 type AlertSequenceItem = {
   ticketId: string;
@@ -281,6 +435,52 @@ const ALERT_SEQUENCE: AlertSequenceItem[] = [
     riskScore: 54,
   },
 ];
+
+type AlarmLandmarkPoint = {
+  number: string;
+  refId: string;
+  lon: number;
+  lat: number;
+  severity: 'P1' | 'P2';
+  rootCause: string;
+  faultArea: string;
+  network: string;
+  cableName: string;
+  createdTime: string;
+  status: string;
+};
+
+const GLOBE_WIDGET_ID = 'middle-east-globe';
+const GLOBE_CAMERA_NEAR_RADIUS = 1300;
+const GLOBE_CAMERA_FAR_RADIUS = 3100;
+const GLOBE_CAMERA_ZOOM_OUT_MS = 700;
+const GLOBE_CAMERA_MOVE_MS = 1800;
+const GLOBE_CAMERA_ZOOM_IN_MS = 900;
+const GLOBE_TRANSITION_TOTAL_MS =
+  GLOBE_CAMERA_ZOOM_OUT_MS + GLOBE_CAMERA_MOVE_MS + GLOBE_CAMERA_ZOOM_IN_MS;
+const LANDMARK_PLAY_HOLD_MS = 2200;
+const POPUP_HIDE_LEAD_MS = 260;
+const GLOBE_ACTIVE_LANDMARK_LAYER_NAME = '故障点位（Active）';
+const DEBUG_GLOBE_CLICK = true;
+
+function resolveCurrentVisdocId(): string {
+  const match = window.location.pathname.match(/\/api\/visdocs\/([^/]+)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+function deepClone<T>(value: T): T {
+  if (typeof globalThis.structuredClone === 'function') {
+    return globalThis.structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function logGlobeClickDebug(...args: unknown[]) {
+  if (!DEBUG_GLOBE_CLICK) {
+    return;
+  }
+  console.debug('[ai-board][globe-click]', ...args);
+}
 
 function renderAlertCardContent(item: AlertSequenceItem, ticket: any, _isCritical: boolean) {
   const isP2 = item.eta === 'PENDING' || item.severity === 'WARNING';
@@ -2036,13 +2236,55 @@ function MetricIconBadge({
 // ----------------------------------------------------
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mapRef = useRef<MapRef | null>(null);
+  const mapRef = useRef<any>(null);
   const cameraRef = useRef<ArcRotateCamera | null>(null);
   
+  const faultDataset = useDataset('submarine_cable_fault_points_mock');
   const [dataLoaded, setDataLoaded] = useState(false);
   const [cablesData, setNetworksData] = useState<any[]>([]);
   const [popsData, setPopsData] = useState<any>({ features: [] });
   const [countriesData, setCountriesData] = useState<any>(null);
+  const [globeWidgetTemplate, setGlobeWidgetTemplate] = useState<any | null>(null);
+  const alarmLandmarks = useMemo<AlarmLandmarkPoint[]>(() => {
+    const rows = Array.isArray(faultDataset?.data) ? faultDataset.data : [];
+
+    return rows
+      .map((row): AlarmLandmarkPoint | null => {
+        const record = row as Record<string, unknown>;
+        const severityText = String(record['Severity'] ?? '')
+          .trim()
+          .toUpperCase();
+        if (severityText !== 'P1' && severityText !== 'P2') {
+          return null;
+        }
+
+        const lon = Number(record['Longitude']);
+        const lat = Number(record['Latitude']);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+          return null;
+        }
+
+        const number = String(record['Number'] ?? '').trim();
+        if (!number) {
+          return null;
+        }
+
+        return {
+          number,
+          refId: String(record['Ref Id'] ?? '').trim(),
+          lon,
+          lat,
+          severity: severityText,
+          rootCause: String(record['Root cause'] ?? '').trim(),
+          faultArea: String(record['Fault area'] ?? '').trim(),
+          network: String(record['Network'] ?? '').trim(),
+          cableName: String(record['cable_name'] ?? '').trim(),
+          createdTime: String(record['Created_Time'] ?? '').trim(),
+          status: String(record['Status'] ?? '').trim(),
+        };
+      })
+      .filter((item): item is AlarmLandmarkPoint => item !== null);
+  }, [faultDataset]);
   
   // const [targetLonLat, setTargetLonLat] = useState<{lon: number, lat: number}>({ lon: 40, lat: 25 });
   const [viewState2D, setViewState2D] = useState({
@@ -2055,14 +2297,58 @@ export default function App() {
 
   const [scale, setScale] = useState(1);
   const [currentStory, setCurrentStory] = useState<StoryMode>('GLOBAL');
-  const [activeAlertIndex, setActiveAlertIndex] = useState(0);
+  const [activeLandmarkIndex, setActiveLandmarkIndex] = useState(0);
+  const [cycleStartIndex, setCycleStartIndex] = useState(0);
+  const [isAutoCycleEnabled, setIsAutoCycleEnabled] = useState(true);
   const [alertPopupPhase, setAlertPopupPhase] = useState<'hidden' | 'visible'>('hidden');
   const [now, setNow] = useState(() => new Date());
   const ledgerViewportRef = useRef<HTMLDivElement | null>(null);
   const ledgerItemRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [centerLedgerIndex, setCenterLedgerIndex] = useState(0);
   const config = STORY_CONFIG[currentStory];
-  const activeAlert = ALERT_SEQUENCE[activeAlertIndex];
+  const enableRight3DMapWidget = false;
+  const activeLandmark = alarmLandmarks[activeLandmarkIndex] ?? null;
+  const activeAlertTemplate =
+    ALERT_SEQUENCE[activeLandmark?.severity === 'P2' ? 1 : 0] ??
+    ALERT_SEQUENCE[0];
+  const activeAlert = useMemo<AlertSequenceItem>(() => {
+    if (!activeLandmark) {
+      return activeAlertTemplate;
+    }
+
+    const isP2 = activeLandmark.severity === 'P2';
+    return {
+      ...activeAlertTemplate,
+      ticketId: activeLandmark.number,
+      nodeId: activeLandmark.refId || activeAlertTemplate.nodeId,
+      location: activeLandmark.faultArea || activeAlertTemplate.location,
+      lon: activeLandmark.lon,
+      lat: activeLandmark.lat,
+      severity: isP2 ? 'WARNING' : 'CRITICAL',
+      priority: activeLandmark.severity,
+      title: isP2
+        ? 'SUBMARINE ROUTE DEGRADED'
+        : 'SUBMARINE ROUTE INCIDENT',
+      desc: activeLandmark.rootCause || activeAlertTemplate.desc,
+      eta: isP2 ? 'PENDING' : activeAlertTemplate.eta,
+      region: activeLandmark.faultArea || activeAlertTemplate.region,
+      signal: activeLandmark.refId || activeAlertTemplate.signal,
+      network: activeLandmark.cableName || activeAlertTemplate.network,
+      affectedObject:
+        activeLandmark.refId || activeAlertTemplate.affectedObject,
+      phenomenon: activeLandmark.rootCause || activeAlertTemplate.phenomenon,
+      advisory: activeLandmark.status || activeAlertTemplate.advisory,
+      startTime: activeLandmark.createdTime || activeAlertTemplate.startTime,
+      snapshotMetricValue:
+        activeLandmark.refId || activeAlertTemplate.snapshotMetricValue,
+      metrics: [
+        { label: 'Severity', value: activeLandmark.severity },
+        { label: 'Ref ID', value: activeLandmark.refId || '--' },
+        { label: 'Cable', value: activeLandmark.cableName || '--' },
+        { label: 'Status', value: activeLandmark.status || '--' },
+      ],
+    };
+  }, [activeAlertTemplate, activeLandmark]);
   const isP1AlarmTone =
     currentStory === 'ALARM_EVENT' &&
     alertPopupPhase === 'visible' &&
@@ -2096,32 +2382,293 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`./widgets.json?ts=${Date.now()}`, {
+          cache: 'no-store',
+        });
+        if (!response.ok) {
+          throw new Error(`widgets manifest request failed: ${response.status}`);
+        }
+
+        const manifest = (await response.json()) as {
+          widgets?: Array<Record<string, unknown>>;
+        };
+        const widget =
+          manifest.widgets?.find((item) => item.id === GLOBE_WIDGET_ID) ??
+          null;
+        if (cancelled) return;
+        setGlobeWidgetTemplate(widget);
+      } catch (error) {
+        console.error('[dashboard] failed to load globe widget config', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (alarmLandmarks.length === 0) {
+      setActiveLandmarkIndex(0);
+      setCycleStartIndex(0);
+      return;
+    }
+
+    setActiveLandmarkIndex((prev) => prev % alarmLandmarks.length);
+    setCycleStartIndex((prev) => prev % alarmLandmarks.length);
+  }, [alarmLandmarks.length]);
+
+  useEffect(() => {
     if (currentStory !== 'ALARM_EVENT') {
       setAlertPopupPhase('hidden');
       return;
     }
+    if (!globeWidgetTemplate || alarmLandmarks.length === 0) {
+      setAlertPopupPhase('hidden');
+      return;
+    }
 
-    // Initial pop out from Earth
-    const initTimer = window.setTimeout(() => {
-      setAlertPopupPhase('visible');
-    }, 100);
+    if (!isAutoCycleEnabled) {
+      logGlobeClickDebug('skip cycle effect: auto cycle disabled');
+      return;
+    }
 
-    const interval = window.setInterval(() => {
-      // 1. Suck back into Earth (Mac closing window effect)
+    let cancelled = false;
+    const timers: number[] = [];
+
+    const postGlobeUpdate = (widget: Record<string, unknown>) => {
+      const visdocId = resolveCurrentVisdocId();
+      if (!visdocId) {
+        logGlobeClickDebug('skip widget update: visdoc id not found');
+        return;
+      }
+      logGlobeClickDebug('post widget update', {
+        visdocId,
+      });
+      window.postMessage(
+        {
+          type: 'zmeta-ai-board-widget:update',
+          visdocId,
+          widget,
+        },
+        window.location.origin
+      );
+    };
+
+    const buildPlaybackWidget = (
+      point: AlarmLandmarkPoint,
+      animationEnabled: boolean
+    ): Record<string, unknown> => {
+      const widget = deepClone(globeWidgetTemplate) as Record<string, any>;
+      const currentConfig =
+        (widget.config as Record<string, unknown> | undefined) ?? {};
+
+      widget.config = {
+        ...currentConfig,
+        cameraAnimationEnabled: false,
+        cameraConfig: {
+          ...((currentConfig.cameraConfig as Record<string, unknown>) ?? {}),
+          viewLon: point.lon,
+          viewLat: point.lat,
+          radius: GLOBE_CAMERA_NEAR_RADIUS,
+        },
+        cameraTransition: {
+          enabled: true,
+          steps: [
+            {
+              type: 'tweenCamera',
+              to: {
+                radius: GLOBE_CAMERA_FAR_RADIUS,
+              },
+              durationMs: GLOBE_CAMERA_ZOOM_OUT_MS,
+            },
+            {
+              type: 'tweenCamera',
+              to: {
+                viewLon: point.lon,
+                viewLat: point.lat,
+                radius: GLOBE_CAMERA_FAR_RADIUS,
+              },
+              durationMs: GLOBE_CAMERA_MOVE_MS,
+            },
+            {
+              type: 'tweenCamera',
+              to: '@final',
+              durationMs: GLOBE_CAMERA_ZOOM_IN_MS,
+            },
+          ],
+        },
+      };
+
+      if (Array.isArray(widget.dataConfig)) {
+        const sourceDataConfig = widget.dataConfig as Record<string, any>[];
+        const baseDataConfig = sourceDataConfig.filter((item) => {
+          const layerConfig = item?.config as Record<string, any> | undefined;
+          return !(
+            layerConfig?.layerType === 'landmark' &&
+            layerConfig?.layerName === GLOBE_ACTIVE_LANDMARK_LAYER_NAME
+          );
+        });
+
+        let activeLayerTemplate: Record<string, any> | null = null;
+
+        const normalizedDataConfig = baseDataConfig.map(
+          (item: Record<string, any>) => {
+            const layerConfig = item?.config as Record<string, any> | undefined;
+            if (!layerConfig || layerConfig.layerType !== 'landmark') {
+              return item;
+            }
+
+            const layerSeverity =
+              String(layerConfig.categoryValue ?? '')
+                .trim()
+                .toUpperCase() === 'P2'
+                ? 'P2'
+                : 'P1';
+            if (layerSeverity === point.severity && !activeLayerTemplate) {
+              activeLayerTemplate = item;
+            }
+
+            const style = (layerConfig.style as Record<string, any>) ?? {};
+            return {
+              ...item,
+              config: {
+                ...layerConfig,
+                enabled: true,
+                categoryField:
+                  typeof layerConfig.categoryField === 'string' &&
+                  layerConfig.categoryField.trim().length > 0
+                    ? layerConfig.categoryField
+                    : 'Severity',
+                categoryValue:
+                  typeof layerConfig.categoryValue === 'string' &&
+                  layerConfig.categoryValue.trim().length > 0
+                    ? layerConfig.categoryValue
+                    : layerSeverity,
+                style: {
+                  ...style,
+                  animationEnabled: false,
+                },
+              },
+            };
+          }
+        );
+
+        if (activeLayerTemplate && animationEnabled) {
+          const activeConfig = activeLayerTemplate.config as Record<string, any>;
+          const activeStyle = (activeConfig.style as Record<string, any>) ?? {};
+          normalizedDataConfig.push({
+            ...activeLayerTemplate,
+            config: {
+              ...activeConfig,
+              layerName: GLOBE_ACTIVE_LANDMARK_LAYER_NAME,
+              enabled: true,
+              categoryField: 'Number',
+              categoryValue: point.number,
+              style: {
+                ...activeStyle,
+                animationEnabled: true,
+                animationDurationMs: 1100,
+                animationLoopGapMs: 160,
+                presenceAnimation: {
+                  ...((activeStyle.presenceAnimation as Record<string, any>) ?? {}),
+                  enabled: true,
+                },
+              },
+            },
+          });
+        }
+
+        widget.dataConfig = normalizedDataConfig;
+      }
+
+      return widget;
+    };
+
+    const playCycle = (index: number) => {
+      if (cancelled) {
+        return;
+      }
+
+      const point = alarmLandmarks[index];
+      if (!point) {
+        logGlobeClickDebug('playCycle abort: point not found', {
+          index,
+          landmarksCount: alarmLandmarks.length,
+        });
+        return;
+      }
+      logGlobeClickDebug('playCycle start', {
+        index,
+        point,
+        isAutoCycleEnabled,
+      });
+
+      setActiveLandmarkIndex(index);
       setAlertPopupPhase('hidden');
 
-      // 2. Swap data and pop out again
-      window.setTimeout(() => {
-        setActiveAlertIndex((prev) => (prev + 1) % ALERT_SEQUENCE.length);
+      const flyTimer = window.setTimeout(() => {
+        if (cancelled) return;
+        logGlobeClickDebug('playCycle stage: fly', {
+          index,
+          pointNumber: point.number,
+        });
+        postGlobeUpdate(buildPlaybackWidget(point, false));
+      }, POPUP_HIDE_LEAD_MS);
+
+      const animateTimer = window.setTimeout(() => {
+        if (cancelled) return;
+        logGlobeClickDebug('playCycle stage: animate+popup', {
+          index,
+          pointNumber: point.number,
+        });
+        postGlobeUpdate(buildPlaybackWidget(point, true));
         setAlertPopupPhase('visible');
-      }, 800); // Wait for exit animation to finish (matching duration)
-    }, 6000); // Slightly longer interval to accommodate the longer animation
+      }, POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS);
+
+      timers.push(flyTimer, animateTimer);
+
+      if (isAutoCycleEnabled) {
+        const nextTimer = window.setTimeout(() => {
+          if (cancelled) return;
+          const nextIndex = (index + 1) % alarmLandmarks.length;
+          logGlobeClickDebug('playCycle schedule next', {
+            index,
+            nextIndex,
+          });
+          playCycle(nextIndex);
+        }, POPUP_HIDE_LEAD_MS + GLOBE_TRANSITION_TOTAL_MS + LANDMARK_PLAY_HOLD_MS);
+        timers.push(nextTimer);
+      }
+    };
+
+    const normalizedStartIndex =
+      ((cycleStartIndex % alarmLandmarks.length) + alarmLandmarks.length) %
+      alarmLandmarks.length;
+    logGlobeClickDebug('cycle effect start', {
+      normalizedStartIndex,
+      cycleStartIndex,
+      isAutoCycleEnabled,
+    });
+    playCycle(normalizedStartIndex);
 
     return () => {
-      window.clearTimeout(initTimer);
-      window.clearInterval(interval);
+      cancelled = true;
+      logGlobeClickDebug('cycle effect cleanup', {
+        timers: timers.length,
+      });
+      timers.forEach((timerId) => window.clearTimeout(timerId));
     };
-  }, [currentStory]);
+  }, [
+    currentStory,
+    globeWidgetTemplate,
+    alarmLandmarks,
+    cycleStartIndex,
+    isAutoCycleEnabled,
+  ]);
 
   useEffect(() => {
     if (currentStory !== 'ALARM_EVENT') return;
@@ -2170,12 +2717,12 @@ export default function App() {
     (async () => {
       try {
         const [cables, pops, world] = await Promise.all([
-          fetch('./assets/cables.json').then((r) => r.json()),
-          fetch('./assets/pops.geojson').then((r) => r.json()),
-          fetch('./assets/world.geojson').then((r) => r.json()),
+          loadCablePathsFromAssets(),
+          fetch(assetUrl('pops.geojson')).then((r) => r.json()),
+          fetch(assetUrl('world.geojson')).then((r) => r.json()),
         ]);
         if (cancelled) return;
-        setNetworksData(cables as any[]);
+        setNetworksData(cables);
         setPopsData(pops);
         setCountriesData(world);
         setDataLoaded(true);
@@ -2575,8 +3122,8 @@ export default function App() {
       data: cablesData,
       pickable: true,
       widthScale: 1,
-      widthMinPixels: currentStory === 'CABLE_FOCUS' ? 2 : 1, // Thicker in CABLE_FOCUS
-      widthMaxPixels: currentStory === 'CABLE_FOCUS' ? 4 : 2,
+      widthMinPixels: currentStory === 'CABLE_FOCUS' ? 3 : 2, // keep global cables clearly visible
+      widthMaxPixels: currentStory === 'CABLE_FOCUS' ? 6 : 3,
       getPath: d => d.coordinates,
       getColor: d => {
         if (currentStory === 'CABLE_FOCUS') {
@@ -2584,13 +3131,13 @@ export default function App() {
           return [165, 78, 225, 255]; // Highlight all cables in purple
         }
         if (currentStory === 'DC_FOCUS') {
-          return [255, 255, 255, 30]; // Dim cables in DC_FOCUS
+          return [255, 255, 255, 90]; // Dim cables in DC_FOCUS
         }
         if (d.name === 'SMW4 main') return getArtColorRGB('critical');
         if (d.isProtection || d.name.toLowerCase().includes('protection')) return [142, 154, 160, 255]; // Silver
-        return [255, 255, 255, 120]; // Ghostly white
+        return [255, 255, 255, 220]; // brighter default network lines
       },
-      getWidth: (d: any) => d.name === 'SMW4 main' ? 2 : 1,
+      getWidth: (d: any) => d.name === 'SMW4 main' ? 3 : 1.8,
       getDashArray: (d: any) => (d.isProtection && d.name !== 'SMW4 main') ? [2, 4] : [0, 0],
       dashJustified: true,
       extensions: [new PathStyleExtension({dash: true})],
@@ -2637,6 +3184,20 @@ export default function App() {
       }
     })
   ];
+
+  const mapStyle = {
+    version: 8,
+    sources: {},
+    layers: [
+      {
+        id: 'background',
+        type: 'background',
+        paint: {
+          'background-color': '#05050F',
+        },
+      },
+    ],
+  } as const;
 
   const TAB_ITEMS: { id: StoryMode, label: string }[] = [
     { id: 'GLOBAL', label: 'GLOBAL VIEW' },
@@ -2801,7 +3362,7 @@ export default function App() {
         </div>
 
         {/* ========================================================= */}
-        {/* ART PIECE 2: THE CONSTELLATION MAP (2D RIGHT)             */}
+        {/* ART PIECE 2: THE EXTRUDED 3D MAP (RIGHT)                  */}
         {/* ========================================================= */}
         <div 
           className="h-full relative shrink-0 transition-all duration-700 ease-in-out z-10"
@@ -2824,16 +3385,18 @@ export default function App() {
               WebkitMaskImage: '-webkit-linear-gradient(left, transparent 0%, black 12%, black 88%, transparent 100%)',
             }}
           >
-            <WidgetHost
-              id="middle-east-3d-map"
-              className="absolute left-0 top-0 z-[1] overflow-hidden bg-transparent"
-              minHeight="100%"
-              style={{
-                width: '100%',
-                height: '100%',
-                transformOrigin: 'top left',
-              }}
-            />
+            {enableRight3DMapWidget ? (
+              <WidgetHost
+                id="middle-east-3d-map"
+                className="absolute left-0 top-0 z-0 overflow-hidden bg-transparent"
+                minHeight="100%"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  transformOrigin: 'top left',
+                }}
+              />
+            ) : null}
           </div>
 
           {/* 边缘过渡黑边 */}
