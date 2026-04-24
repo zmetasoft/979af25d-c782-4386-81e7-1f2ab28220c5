@@ -71,9 +71,13 @@
               "orderDirection": "asc"
             },
             "style": {
-              "color": "#FF9A2E",
-              "opacity": 0.95,
-              "thicknessScale": 12
+              "color": "#3CC0E2",
+              "opacity": 0.14,
+              "thicknessScale": 2,
+              "effectPreset": "comet",
+              "flowDirection": "reverse",
+              "flowSpeed": 0.4,
+              "glowIntensity": 1.8
             }
           },
           "filters": [],
