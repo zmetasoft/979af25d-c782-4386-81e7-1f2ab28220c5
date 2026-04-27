@@ -55,29 +55,40 @@
       },
       "dataConfig": [
         {
-          "datasetId": "c1aa7cc0-8717-4d24-a4e4-ae8cc5ea3bc1",
-          "fields": [],
+          "datasetId": "1941c631-34fd-42f4-bec7-fbfb25bde290",
+          "fields": [
+            {
+              "name": "longitude",
+              "type": "number"
+            },
+            {
+              "name": "latitude",
+              "type": "number"
+            }
+          ],
           "config": {
             "layerType": "connection",
             "layerName": "海缆连线",
             "enabled": true,
+            "categoryField": "",
+            "categoryValue": "",
             "fields": {
               "lonField": "longitude",
               "latField": "latitude"
             },
             "path": {
+              "orderDirection": "asc",
               "groupField": "cable_name",
-              "orderField": "point_index",
-              "orderDirection": "asc"
+              "orderField": "point_index"
             },
             "style": {
               "color": "#EAF4FF",
               "opacity": 0.14,
               "thicknessScale": 2,
               "effectPreset": "comet",
-              "flowDirection": "reverse",
               "flowSpeed": 0.4,
-              "glowIntensity": 1.8
+              "glowIntensity": 1.8,
+              "flowDirection": "reverse"
             }
           },
           "filters": [],
@@ -86,14 +97,6 @@
         {
           "datasetId": "683dea89-f65d-4ae5-a0df-5c0578ac4afe",
           "fields": [
-            {
-              "name": "Ref Id",
-              "type": "string"
-            },
-            {
-              "name": "Root cause",
-              "type": "string"
-            },
             {
               "name": "Latitude",
               "type": "number"
@@ -104,6 +107,10 @@
             },
             {
               "name": "Severity",
+              "type": "string"
+            },
+            {
+              "name": "cable_name",
               "type": "string"
             }
           ],
@@ -116,17 +123,16 @@
             "categoryValue": "P1",
             "labelCard": {
               "mode": "none",
-              "titleField": "Ref Id",
-              "contentField": "Root cause"
+              "titleField": "cable_name",
+              "contentField": "cable_name"
             },
             "fields": {
               "lonField": "Longitude",
-              "latField": "Latitude",
-              "nameField": "Ref Id"
+              "latField": "Latitude"
             },
             "style": {
               "sizeMode": "world",
-              "worldSize": 64,
+              "worldSize": 60,
               "screenSizePx": 64,
               "animationEnabled": true,
               "animationDurationMs": 1000,
@@ -145,10 +151,6 @@
           "datasetId": "683dea89-f65d-4ae5-a0df-5c0578ac4afe",
           "fields": [
             {
-              "name": "Ref Id",
-              "type": "string"
-            },
-            {
               "name": "Root cause",
               "type": "string"
             },
@@ -163,6 +165,10 @@
             {
               "name": "Severity",
               "type": "string"
+            },
+            {
+              "name": "cable_name",
+              "type": "string"
             }
           ],
           "config": {
@@ -174,13 +180,12 @@
             "categoryValue": "P2",
             "labelCard": {
               "mode": "none",
-              "titleField": "Ref Id",
+              "titleField": "cable_name",
               "contentField": "Root cause"
             },
             "fields": {
               "lonField": "Longitude",
-              "latField": "Latitude",
-              "nameField": "Ref Id"
+              "latField": "Latitude"
             },
             "style": {
               "sizeMode": "world",

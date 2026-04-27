@@ -3112,7 +3112,7 @@ export default function App() {
     [alarmLandmarks, triggerManualPlayback]
   );
   const config = STORY_CONFIG[currentStory];
-  const enableRight3DMapWidget = false;
+  const enableRight3DMapWidget = true;
   const ledgerScrollDistance =
     ledgerEvents.length * (LEDGER_CARD_HEIGHT + LEDGER_CARD_GAP);
   const ledgerScrollDurationMs =
@@ -3207,6 +3207,10 @@ export default function App() {
   }, [activeAlert]);
 
   useEffect(() => {
+    if (!enableRight3DMapWidget) {
+      return;
+    }
+
     const postWidgetUpdate = (
       runtimeCameraCommand?: Parameters<typeof buildMiddleEast3dMapWidget>[0]
     ) => {
@@ -3254,6 +3258,7 @@ export default function App() {
 
     return undefined;
   }, [
+    enableRight3DMapWidget,
     currentStory,
     activeAlert.ticketId,
     activeAlert.lon,
@@ -4561,16 +4566,18 @@ export default function App() {
                 'saturate(1.25) contrast(1.12) brightness(0.92) hue-rotate(18deg)',
             }}
           >
-            <WidgetHost
-              id="middle-east-3d-map"
-              className="absolute left-0 top-0 z-[1] overflow-hidden bg-transparent"
-              minHeight="100%"
-              style={{
-                width: '100%',
-                height: '100%',
-                transformOrigin: 'top left',
-              }}
-            />
+            {enableRight3DMapWidget ? (
+              <WidgetHost
+                id="middle-east-3d-map"
+                className="absolute left-0 top-0 z-[1] overflow-hidden bg-transparent"
+                minHeight="100%"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  transformOrigin: 'top left',
+                }}
+              />
+            ) : null}
             <div
               className="absolute inset-0 z-[2] pointer-events-none"
               style={{
