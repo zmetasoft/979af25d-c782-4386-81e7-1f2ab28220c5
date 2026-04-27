@@ -91,6 +91,7 @@ const MIDDLE_EAST_3D_MAP_CAMERA_VIEW = {
 const P1_CABLE_STYLE_RULE_ALIASES: Record<string, string[]> = {
   IMEWE: ['IMEWE', 'IMEWE main', 'IMEWE protection'],
 };
+const REAL_FAULT_POINTS_DATASET_ID = '8bc15d2b-1879-4e3e-80d2-9fbd1ed30543';
 const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
   {
     datasetId: '1941c631-34fd-42f4-bec7-fbfb25bde290',
@@ -145,7 +146,7 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
     sorts: [],
   },
   {
-    datasetId: '683dea89-f65d-4ae5-a0df-5c0578ac4afe',
+    datasetId: REAL_FAULT_POINTS_DATASET_ID,
     fields: [
       {
         id: '0700a019-e7db-4f4e-806d-ec30b46bb89a',
@@ -186,7 +187,7 @@ const MIDDLE_EAST_3D_MAP_DATA_CONFIG = [
     sorts: [],
   },
   {
-    datasetId: '683dea89-f65d-4ae5-a0df-5c0578ac4afe',
+    datasetId: REAL_FAULT_POINTS_DATASET_ID,
     fields: [
       {
         id: '0700a019-e7db-4f4e-806d-ec30b46bb89a',

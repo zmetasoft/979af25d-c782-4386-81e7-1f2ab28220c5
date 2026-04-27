@@ -95,7 +95,7 @@
           "sorts": []
         },
         {
-          "datasetId": "683dea89-f65d-4ae5-a0df-5c0578ac4afe",
+          "datasetId": "8bc15d2b-1879-4e3e-80d2-9fbd1ed30543",
           "fields": [
             {
               "name": "Latitude",
@@ -148,12 +148,8 @@
           "sorts": []
         },
         {
-          "datasetId": "683dea89-f65d-4ae5-a0df-5c0578ac4afe",
+          "datasetId": "8bc15d2b-1879-4e3e-80d2-9fbd1ed30543",
           "fields": [
-            {
-              "name": "Root cause",
-              "type": "string"
-            },
             {
               "name": "Latitude",
               "type": "number"
@@ -181,7 +177,7 @@
             "labelCard": {
               "mode": "none",
               "titleField": "cable_name",
-              "contentField": "Root cause"
+              "contentField": ""
             },
             "fields": {
               "lonField": "Longitude",
@@ -397,20 +393,62 @@
           "sorts": []
         },
         {
-          "datasetId": "683dea89-f65d-4ae5-a0df-5c0578ac4afe",
+          "datasetId": "8bc15d2b-1879-4e3e-80d2-9fbd1ed30543",
           "fields": [
             {
-              "name": "Longitude",
-              "type": "number",
-              "id": "0700a019-e7db-4f4e-806d-ec30b46bb89a"
+              "name": "Number",
+              "type": "string"
+            },
+            {
+              "name": "Status",
+              "type": "string"
+            },
+            {
+              "name": "Network",
+              "type": "string"
+            },
+            {
+              "name": "Created_name",
+              "type": "string"
+            },
+            {
+              "name": "Root_cause",
+              "type": "string"
+            },
+            {
+              "name": "Fault_area",
+              "type": "string"
             },
             {
               "name": "Latitude",
-              "type": "number",
-              "id": "81526c16-1fc2-4fd6-99a1-6db82b92ab8f"
+              "type": "number"
+            },
+            {
+              "name": "Longitude",
+              "type": "number"
             },
             {
               "name": "Severity",
+              "type": "string"
+            },
+            {
+              "name": "Alarm_clear_time",
+              "type": "string"
+            },
+            {
+              "name": "Closed_on",
+              "type": "string"
+            },
+            {
+              "name": "Created_Time",
+              "type": "string"
+            },
+            {
+              "name": "cable_name",
+              "type": "string"
+            },
+            {
+              "name": "point_index",
               "type": "string"
             }
           ],
@@ -458,20 +496,62 @@
           "sorts": []
         },
         {
-          "datasetId": "683dea89-f65d-4ae5-a0df-5c0578ac4afe",
+          "datasetId": "8bc15d2b-1879-4e3e-80d2-9fbd1ed30543",
           "fields": [
             {
-              "name": "Longitude",
-              "type": "number",
-              "id": "0700a019-e7db-4f4e-806d-ec30b46bb89a"
+              "name": "Number",
+              "type": "string"
+            },
+            {
+              "name": "Status",
+              "type": "string"
+            },
+            {
+              "name": "Network",
+              "type": "string"
+            },
+            {
+              "name": "Created_name",
+              "type": "string"
+            },
+            {
+              "name": "Root_cause",
+              "type": "string"
+            },
+            {
+              "name": "Fault_area",
+              "type": "string"
             },
             {
               "name": "Latitude",
-              "type": "number",
-              "id": "81526c16-1fc2-4fd6-99a1-6db82b92ab8f"
+              "type": "number"
+            },
+            {
+              "name": "Longitude",
+              "type": "number"
             },
             {
               "name": "Severity",
+              "type": "string"
+            },
+            {
+              "name": "Alarm_clear_time",
+              "type": "string"
+            },
+            {
+              "name": "Closed_on",
+              "type": "string"
+            },
+            {
+              "name": "Created_Time",
+              "type": "string"
+            },
+            {
+              "name": "cable_name",
+              "type": "string"
+            },
+            {
+              "name": "point_index",
               "type": "string"
             }
           ],
